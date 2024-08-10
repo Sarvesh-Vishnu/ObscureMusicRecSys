@@ -8,8 +8,8 @@ from spotipy.oauth2 import SpotifyClientCredentials
 from PIL import Image
 
 # Establishing Connections to Spotify API and instantiating Object 
-Spotify_Client_ID = '3f171623fda2487bb16422c30f7983e6'
-Spotify_Client_Secret = 'cbca2ea237a54221be0539e2b7e3a464'
+Spotify_Client_ID = '2496dace4cfd4689a8ef36a58fb4d7fb'
+Spotify_Client_Secret = '48a4afbc9ede4e7195217d888292b2bf'
 
 auth_manager = SpotifyClientCredentials(client_id = Spotify_Client_ID, client_secret = Spotify_Client_Secret)
 sp = spotipy.Spotify(auth_manager=auth_manager)
