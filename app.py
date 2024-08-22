@@ -22,7 +22,7 @@ display_image = Image.open('MR_GN.png')
 st.set_page_config(page_title='Obscure Music Recommendations',page_icon=display_image,layout='wide')
 st.header('Obscure Music RecSys')
 
-st.write('Welcome to the Obscure Music Recommendation System. Currently, we offer a curated selection of lesser-heard songs. As we continue developing our platform, we look forward to expanding these offerings to further broaden your musical horizons to new languages and genres. Thank you for exploring with us as we grow! Here's a demo: ')
+st.write('Welcome to the Obscure Music Recommendation System. Currently, we offer a curated selection of lesser-heard songs. As we continue developing our platform, we look forward to expanding these offerings to further broaden your musical horizons to new languages and genres. Thank you for exploring with us as we grow! Here is a short demo:')
 st.video('https://youtu.be/yI7nqBiK1QE')
 st.sidebar.image("MR_GN.png")
 
