@@ -1,0 +1,1 @@
+"""Obscure music recommendation core."""

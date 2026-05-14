@@ -1,228 +1,152 @@
-# Importing Libraries
-import spotipy
-import pandas as pd 
+"""Obscure Music RecSys — semantic recommender over a long-tail catalog.
+
+Pipeline (no longer dependent on deprecated Spotify endpoints):
+    free-text seed -> sentence-transformer embedding -> FAISS k-NN
+    -> blend cosine similarity with an obscurity prior
+    -> Ollama gemma3:4b narrative explaining each pick
+    -> optional Spotify link/art as display layer
+"""
+
+from __future__ import annotations
+
 import streamlit as st
-import polar_plot
-import music_recommendations
-from spotipy.oauth2 import SpotifyClientCredentials 
-from PIL import Image
 
-# Establishing Connections to Spotify API and instantiating Object 
-Spotify_Client_ID = '2496dace4cfd4689a8ef36a58fb4d7fb'
-Spotify_Client_Secret = '48a4afbc9ede4e7195217d888292b2bf'
-
-auth_manager = SpotifyClientCredentials(client_id = Spotify_Client_ID, client_secret = Spotify_Client_Secret)
-sp = spotipy.Spotify(auth_manager=auth_manager)
-
-# App Development 
-
-# Design
-
-display_image = Image.open('MR_GN.png')
-st.set_page_config(page_title='Obscure Music Recommendations',page_icon=display_image,layout='wide')
-st.header('Obscure Music RecSys')
-
-st.write('Welcome to the Obscure Music Recommendation System. Currently, we offer a curated selection of lesser-heard songs. As we continue developing our platform, we look forward to expanding these offerings to further broaden your musical horizons to new languages and genres. Thank you for exploring with us as we grow! Here is a short demo:')
-st.video('https://youtu.be/yI7nqBiK1QE')
-st.sidebar.image("MR_GN.png")
-
-hide_style = """
-        <style>
-        footer {visibility: hidden;
-        </style}
-                    """
-
-st.markdown(hide_style, unsafe_allow_html=True)
-
-# Dev
-
-search_choices = ['Song/Track', 'Artist', 'Album']
-search_selected = st.sidebar.selectbox("Please choose one: ", search_choices)
-
-search_keyword = st.text_input("Enter " + search_selected + " Name")
-button_clicked = st.button("Search")
-
-search_results = []
-tracks = []
-artists = []
-albums = []
+from obscure import catalog as cat
+from obscure import config
+from obscure import narrative
+from obscure import recommender
+from obscure import spotify_display
 
 
-if search_keyword is not None and len(str(search_keyword)) > 0:
-    if search_selected == 'Song/Track':
-        st.write('Start Song/Track Search')
-        tracks = sp.search(q='tracks' + search_keyword, type = 'track', limit = 20)
-        tracks_list = tracks['tracks']['items']
-        if len(tracks_list) > 0:
-            for track in tracks_list:
-                #st.write(track['name'] + " - By - " + track['artists'][0]['name'])
-                search_results.append(track['name'] + " - By - " + track['artists'][0]['name'])
-
-    elif search_selected == 'Artist':
-        st.write('Start Artist Search')
-        artists = sp.search(q='artist' + search_keyword, type = 'artist', limit = 20)
-        artists_list = artists['artists']['items']
-        if len(artists_list) > 0:
-            for artist in artists_list:
-                #st.write(artist['name'])
-                search_results.append(artist['name'])
-
-    if search_selected == 'Album':
-        st.write('Start Album Search')
-        albums = sp.search(q='album' + search_keyword, type = 'album', limit = 20)
-        albums_list = albums['albums']['items']
-        if len(albums_list) > 0:
-            for album in albums_list:
-                #st.write(album['name'] + " - By - " + album['artists'][0]['name'])
-                #print("Album ID: " + album['id'] + " / Artist ID - " + album['artists'][0]['id'])
-                search_results.append(album['name'] + " - By - " + album['artists'][0]['name'])
+st.set_page_config(page_title="Obscure Music RecSys", page_icon="🎧", layout="wide")
 
 
-selected_album = None 
-selected_artist = None 
-selected_track = None 
+@st.cache_resource(show_spinner=False)
+def _load_catalog() -> list[cat.Track]:
+    if config.CATALOG_PATH.exists():
+        return cat.load_parquet()
+    return cat.load_seed()
 
 
-if search_selected == 'Song/Track':
-    selected_track = st.selectbox("Select your Song/Track: ", search_results)
-elif search_selected == 'Artist':
-    selected_artist = st.selectbox("Select your Artist: ", search_results)
-elif search_selected == 'Album':
-    selected_album = st.selectbox("Select your Album", search_results)
+def _ensure_index_built(tracks: list[cat.Track]) -> bool:
+    if config.INDEX_PATH.exists():
+        return True
+    with st.spinner(f"Building FAISS index over {len(tracks)} tracks (one-time, ~30s)..."):
+        from obscure import embeddings as emb
+        emb.build_index(tracks)
+    return True
 
 
-if selected_track is not None and len(tracks) > 0:
-    tracks_list = tracks['tracks']['items']
-    if len(tracks_list) > 0:
-            for track in tracks_list:
-                str_temp = track['name'] + " - By - " + track['artists'][0]['name']
-                if str_temp == selected_track:
-                    track_id = track['id']
-                    track_album = track['album']['name']
-                    img_album = track['album']['images'][1]['url']
-                    #st.write(track_id,track_album, img_album)
-                    music_recommendations.save_album_image(img_album,track_id)
-    selected_track_choice = None                
-    if track_id is not None:
-        image = music_recommendations.get_album_image(track_id)
-        st.image(image)
+def _render_pick(seed_track: cat.Track | None, rec: recommender.Recommendation) -> None:
+    t = rec.track
+    col_art, col_body = st.columns([1, 4])
 
-        track_choices = ['Song Features', 'Recommendations']
-        selected_track_choice = st.sidebar.selectbox('Please select track choice: ', track_choices)
-        if selected_track_choice == 'Song Features':
-            track_features = sp.audio_features(track_id)
-            df = pd.DataFrame(track_features, index=[0])
-            df_features = df.loc[:,['acousticness','danceability','energy','instrumentalness','liveness','speechiness','valence']]
-            st.dataframe(df_features)
-            polar_plot.feature_plot(df_features)
-        elif selected_track_choice == 'Recommendations':
-            token = music_recommendations.get_token(Spotify_Client_ID, Spotify_Client_Secret)
-            similar_songs_json = music_recommendations.get_track_recommendations_v3(track_id,token)
-            recommendations_list = similar_songs_json['tracks']
-            recommendations_list_df = pd.DataFrame(recommendations_list)
-            #st.dataframe(recommendations_list_df)
-            recommendations_df = recommendations_list_df[['name','duration_ms','explicit','popularity']]
-            st.dataframe(recommendations_df)
-            music_recommendations.music_recommendation_viz(recommendations_df)
-    else: 
-        st.write('Please select a track from the list')
-elif selected_album is not None and len(albums) > 0: 
-    albums_list = albums['albums']['items']
-    album_id = None
-    album_uri = None
-    album_name = None 
+    link = spotify_display.lookup(t.title, t.artist)
+    with col_art:
+        if link and link.image_url:
+            st.image(link.image_url, use_container_width=True)
+        else:
+            st.markdown("`(no art)`")
 
-    if len(albums_list) > 0:
-            for album in albums_list:
-                str_temp = album['name'] + " - By - " + album['artists'][0]['name']
-                if selected_album == str_temp: 
-                    album_id = album['id']
-                    album_uri = album['uri']
-                    album_name = album['name']
-    if album_id is not None and album_uri is not None: 
-        st.write("Collecting all the tracks for the album: " + album_name)
-        album_tracks = sp.album_tracks(album_id)
-        df_album_tracks = pd.DataFrame(album_tracks['items'])
-        #st.dataframe(df_album_tracks)
-        df_a_tracks_min = df_album_tracks.loc[:,
-                                              ['id','name','duration_ms','explicit','preview_url']]
-        #st.dataframe(df_a_tracks_min)
-        
-        for idx in df_a_tracks_min.index:
-            with st.container():
-                col1, col2, col3, col4 = st.columns((4,4,1,1))
-                col11, col12 = st.columns((8,2))
-                col1.write(df_a_tracks_min['id'][idx])
-                col2.write(df_a_tracks_min['name'][idx])
-                col3.write(df_a_tracks_min['duration_ms'][idx])
-                col4.write(df_a_tracks_min['explicit'][idx])
-                if df_a_tracks_min['preview_url'][idx] is not None: 
-                    col11.write(df_a_tracks_min['preview_url'][idx])
-                    with col12:
-                        st.audio(df_a_tracks_min['preview_url'][idx],format = "audio/mp3")
+    with col_body:
+        title_md = f"**{t.title}** — *{t.artist}*"
+        if t.year:
+            title_md += f"  · {t.year}"
+        st.markdown(title_md)
 
-if selected_artist is not None and len(artists) > 0: 
-    artists_list = artists['artists']['items']
-    artist_id = None 
-    artist_uri = None 
-    selected_artist_choice = None
-    if len(artists_list) > 0:
-        for artist in artists_list:
-                if selected_artist == artist['name']:
-                    artist_id = artist['id']
-                    artist_uri = artist['uri']
-    if artist_id is not None: 
-        artist_choice = ['Albums','Top Songs']
-        selected_artist_choice = st.sidebar.selectbox('Select Artists Choice',artist_choice)
-    if selected_artist_choice is not None: 
-        if selected_artist_choice == 'Albums':
-            artist_uri = 'spotify:artist:' + artist_id 
-            album_result = sp.artist_albums(artist_uri, album_type='album')
-            all_albums = album_result['items']
-            col1,col2,col3 = st.columns((6,4,2))
-            for album in all_albums: 
-                with st.container(): 
-                    col1.write(album['name'])
-                    col2.write(album['release_date'])
-                    col3.write(album['total_tracks'])
-        elif selected_artist_choice == 'Top Songs':
-            artist_uri = 'spotify:artist:' + artist_id 
-            top_songs_result = sp.artist_top_tracks(artist_uri)
-            for track in top_songs_result['tracks']:
-                with st.container(): 
-                    col1,col2,col3,col4 = st.columns((4,4,2,2))
-                    col11, col12 = st.columns((10,2))
-                    col21, col22 = st.columns((11,1))
-                    col31,col32 = st.columns((11,1))
-                    col1.write(track['id'])
-                    col2.write(track['name'])
-                    col3.write(track['duration_ms'])
-                    col4.write(track['popularity'])
-                    if track['preview_url'] is not None: 
-                        col11.write(track['preview_url'])
-                        with col12: 
-                            st.audio(track['preview_url'],format='audio/mp3')
-                        with col3: 
-                            def feature_requested(): 
-                                track_features = sp.audio_features(track['id'])
-                                df = pd.DataFrame(track_features, index=[0])
-                                df_features = df.loc[:,['acousticness','danceability','energy','instrumentalness','liveness','speechiness','valence']]
-                                with col21: 
-                                    st.dataframe(df_features)
-                                with col31:
-                                    polar_plot.feature_plot(df_features)
-                            feature_botton_state = st.button('Track Audio Features', key = track['id'], on_click = feature_requested)
+        st.caption(
+            f"similarity {rec.similarity:.2f}  ·  obscurity {rec.obscurity:.2f}  "
+            f"·  blended {rec.score:.2f}"
+            + (f"  ·  ~{t.listener_count:,} listeners" if t.listener_count else "")
+        )
 
-                        with col4: 
-                            def music_rec_requested(): 
-                                token = music_recommendations.get_token(Spotify_Client_ID, Spotify_Client_Secret)
-                                similar_songs_json = music_recommendations.get_track_recommendations_v3(track['id'],token)
-                                recommendations_list = similar_songs_json['tracks']
-                                recommendations_list_df = pd.DataFrame(recommendations_list)
-                                recommendations_df = recommendations_list_df[['name','duration_ms','explicit','popularity']]
-                                with col21: 
-                                    st.dataframe(recommendations_df)
-                                with col31: 
-                                    music_recommendations.music_recommendation_viz(recommendations_df)
-                            similar_rec_state = st.button('Similar Music', key = track['name'], on_click = music_rec_requested)
-                        st.write('-----------------------')
+        if seed_track is not None:
+            blurb = narrative.explain(seed_track, t, rec.similarity, rec.obscurity)
+            st.write(blurb)
+
+        if t.tags:
+            st.markdown(" ".join(f"`{tag}`" for tag in t.tags[:6]))
+
+        if link and link.url:
+            st.markdown(f"[Open in Spotify]({link.url})")
+
+
+def main() -> None:
+    st.title("🎧 Obscure Music RecSys")
+    st.caption(
+        "Semantic recommendations over a curated long-tail catalog. "
+        "Self-contained — no Spotify required for recommendations."
+    )
+
+    tracks = _load_catalog()
+    _ensure_index_built(tracks)
+
+    with st.sidebar:
+        st.subheader("Settings")
+        k = st.slider("Number of picks", 3, 20, 8)
+        obscurity_weight = st.slider(
+            "Obscurity vs. similarity", 0.0, 1.0, 0.4, 0.05,
+            help="0 = closest semantic match (a normal recommender). "
+                 "1 = most obscure track in the catalog. "
+                 "0.4 (default) = the sweet spot this app is built for.",
+        )
+        narrative_on = st.toggle("LLM blurb per pick", value=True,
+                                 help=f"Uses Ollama ({config.ollama().model}) locally.")
+        st.markdown("---")
+        st.markdown(f"**Catalog:** {len(tracks)} tracks")
+        st.markdown(f"**Spotify display:** {'on' if config.spotify().enabled else 'off'}")
+
+    mode = st.radio("Seed by", ["Track in catalog", "Free-text description"],
+                    horizontal=True, label_visibility="collapsed")
+
+    seed_track: cat.Track | None = None
+    seed_text = ""
+
+    if mode == "Track in catalog":
+        options = {f"{t.title} — {t.artist}": t for t in tracks}
+        pick = st.selectbox("Pick a seed track", list(options.keys()))
+        seed_track = options[pick]
+        seed_text = seed_track.tag_text()
+        st.caption(f"Embedding: *{seed_text}*")
+    else:
+        seed_text = st.text_input(
+            "Describe what you want",
+            placeholder="e.g. dreamy Turkish psych with fuzz guitar, 1970s",
+        )
+
+    if not seed_text:
+        st.info("Pick a seed above to get recommendations.")
+        return
+
+    if not st.button("Recommend", type="primary"):
+        return
+
+    exclude = {seed_track.title.lower()} if seed_track else set()
+
+    if not narrative_on:
+        # Temporarily disable narrative by passing None as seed_track in render loop.
+        seed_for_narrative = None
+    else:
+        seed_for_narrative = seed_track or cat.Track(
+            track_id="user_query", title="(your prompt)", artist="—",
+            tags=[], description=seed_text,
+        )
+
+    with st.spinner("Searching the long tail..."):
+        recs = recommender.recommend(
+            seed_text=seed_text, tracks=tracks, k=k,
+            obscurity_weight=obscurity_weight, exclude_titles=exclude,
+        )
+
+    if not recs:
+        st.warning("No recommendations — the index may be empty.")
+        return
+
+    for i, rec in enumerate(recs, 1):
+        st.markdown(f"### {i}.")
+        _render_pick(seed_for_narrative, rec)
+        st.markdown("---")
+
+
+if __name__ == "__main__":
+    main()

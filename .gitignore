@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+.streamlit/secrets.toml
+data/*.index
+data/*.faiss
+data/*.npy
+data/*.parquet
+.DS_Store
+.ipynb_checkpoints/
