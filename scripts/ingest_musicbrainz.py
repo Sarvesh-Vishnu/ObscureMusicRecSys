@@ -10,8 +10,12 @@ Last.fm tag enrichment runs if LASTFM_API_KEY is configured.
 from __future__ import annotations
 
 import argparse
+import sys
 import time
+from pathlib import Path
 from typing import Iterable
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import musicbrainzngs
 import requests
