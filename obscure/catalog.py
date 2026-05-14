@@ -74,12 +74,21 @@ def load_parquet(path: Path = config.CATALOG_PATH) -> list[Track]:
 def obscurity_score(track: Track) -> float:
     """0.0 = mainstream, 1.0 = deeply obscure.
 
-    Uses Last.fm-style listener count when available; falls back to 0.5.
-    Curve is log-scaled because listener counts span ~10^1 to ~10^7.
+    Uses Last.fm-style listener count when available; falls back to 0.5 for
+    unknown (NaN, None, or non-positive). Curve is log-scaled because listener
+    counts span ~10^1 to ~10^7.
     """
     import math
     n = track.listener_count
-    if n is None or n <= 0:
+    if n is None:
+        return 0.5
+    # NaN survives `is None` and `<= 0` checks; gate it explicitly.
+    try:
+        if math.isnan(float(n)):
+            return 0.5
+    except (TypeError, ValueError):
+        return 0.5
+    if n <= 0:
         return 0.5
     # ~10 listeners ~= 1.0, ~10M listeners ~= 0.0
     return max(0.0, min(1.0, 1.0 - (math.log10(n) - 1.0) / 6.0))
