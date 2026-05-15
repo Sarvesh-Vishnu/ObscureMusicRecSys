@@ -27,37 +27,44 @@ def recommend(seed_text: str,
               tracks: list[cat.Track],
               k: int = 10,
               obscurity_weight: float = 0.4,
-              exclude_titles: set[str] | None = None,
+              exclude_titles: Optional[set[str]] = None,
               bandit=None,
               bandit_weight: float = 0.5,
-              language_pivot: set[str] | None = None) -> list[Recommendation]:
+              language_pivot: Optional[set[str]] = None) -> list[Recommendation]:
     """Return top-k recommendations.
 
     Ranking is:
         score = (1-w_obs)·similarity + w_obs·obscurity + w_bandit·bandit_score
 
-    `bandit`           Optional LinUCBReranker; if provided, its UCB scores are
-                       added to the blended score with weight `bandit_weight`.
-    `language_pivot`   If provided, exclude candidates whose tags match ANY of
-                       these language buckets — implements "find me something in
-                       a different language". Pass `feats.detect_languages(seed)`
-                       to surface cross-language neighbors.
+    `tracks` should be the SAME ordered list used to build the FAISS index.
+    The caller (app) hydrates it from `Catalog.all_tracks()`.
     """
     exclude = exclude_titles or set()
+
+    # Resolve FAISS row indices to tracks via the persisted id-map. This is
+    # robust to ordering changes between index build and now.
+    id_map = emb.load_id_map()
+    by_id = {t.track_id: t for t in tracks}
+
     scores, idx = emb.query(seed_text, top_k=max(k * 8, 80))
 
     candidates: list[Recommendation] = []
     for sim, i in zip(scores, idx):
-        if i < 0 or i >= len(tracks):
+        if i < 0:
             continue
-        t = tracks[i]
+        # row -> track_id -> Track
+        if i >= len(id_map):
+            continue
+        t = by_id.get(id_map[i])
+        if t is None:
+            continue
         if t.title.lower() in exclude:
             continue
         if language_pivot:
             langs = feats.detect_languages(t)
-            # require at least one language tag AND no overlap with seed's languages
             if not langs or (langs & language_pivot):
                 continue
+
         sim_f = float(max(0.0, min(1.0, (sim + 1) / 2)))
         obs = cat.obscurity_score(t)
         blended = (1 - obscurity_weight) * sim_f + obscurity_weight * obs
@@ -73,12 +80,10 @@ def recommend(seed_text: str,
     if bandit is not None and bandit_weight > 0:
         X = np.stack([c.features for c in candidates])
         ucb = bandit.score(X)
-        # normalize bandit scores to [0,1] within this candidate set so weight
-        # is meaningful regardless of bandit calibration
         ucb_min, ucb_max = float(ucb.min()), float(ucb.max())
         denom = (ucb_max - ucb_min) or 1.0
         ucb_norm = (ucb - ucb_min) / denom
-        for c, u, u_n in zip(candidates, ucb, ucb_norm):
+        for c, u_n in zip(candidates, ucb_norm):
             c.bandit_bonus = float(u_n)
             c.score = c.score + bandit_weight * float(u_n)
 

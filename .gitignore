@@ -8,5 +8,7 @@ data/*.index
 data/*.faiss
 data/*.npy
 data/*.parquet
+data/*.db
+data/catalog.ids.json
 .DS_Store
 .ipynb_checkpoints/

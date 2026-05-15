@@ -18,6 +18,7 @@ import uuid
 import numpy as np
 import streamlit as st
 
+from obscure import cache as warmcache
 from obscure import catalog as cat
 from obscure import config
 from obscure import features as feats
@@ -33,10 +34,13 @@ st.set_page_config(page_title="Obscure Music RecSys", page_icon="🎧", layout="
 # ---------------------------------------------------------------- caching
 
 @st.cache_resource(show_spinner=False)
+def _catalog() -> cat.Catalog:
+    return cat.open_catalog()
+
+
 def _load_catalog() -> list[cat.Track]:
-    if config.CATALOG_PATH.exists():
-        return cat.load_parquet()
-    return cat.load_seed()
+    """Materialize all tracks. Re-reads each call so warm-cache adds are visible."""
+    return _catalog().all_tracks()
 
 
 @st.cache_resource(show_spinner=False)
@@ -232,8 +236,11 @@ def main() -> None:
     settings = _render_sidebar(tracks)
     bandit = _get_bandit(settings["bandit_alpha"])
 
-    mode = st.radio("Seed by", ["Track in catalog", "Free-text description"],
-                    horizontal=True, label_visibility="collapsed")
+    mode = st.radio(
+        "Seed by",
+        ["Track in catalog", "Search any track", "Free-text description"],
+        horizontal=True, label_visibility="collapsed",
+    )
 
     seed_track: cat.Track | None = None
     seed_text = ""
@@ -246,6 +253,44 @@ def main() -> None:
         seed_track = options[pick]
         seed_text = seed_track.tag_text()
         st.caption(f"Embedding: *{seed_text}*")
+    elif mode == "Search any track":
+        c1, c2 = st.columns(2)
+        with c1:
+            q_title = st.text_input("Track title", placeholder="Sayonee")
+        with c2:
+            q_artist = st.text_input("Artist", placeholder="Junoon")
+
+        if q_title or q_artist:
+            catalog = _catalog()
+            results = catalog.by_text(f"{q_title} {q_artist}", limit=8)
+            if results:
+                opts = {f"{t.title} — {t.artist}": t for t in results}
+                pick = st.selectbox(f"Matches ({len(opts)} in catalog)",
+                                    list(opts.keys()))
+                seed_track = opts[pick]
+                seed_text = seed_track.tag_text()
+            elif q_title and q_artist:
+                st.caption(
+                    f"Not in catalog. Click below to fetch *{q_title}* "
+                    f"by *{q_artist}* from MusicBrainz (~2s)."
+                )
+                if st.button("🔍 Fetch from MusicBrainz"):
+                    with st.spinner("Looking up on MusicBrainz..."):
+                        result = warmcache.lookup_or_fetch(q_title, q_artist,
+                                                           catalog=catalog)
+                    if result is None:
+                        st.error("MusicBrainz had no match for that title + artist.")
+                    else:
+                        st.success(
+                            f"Fetched: {result.track.title} — {result.track.artist}. "
+                            "Rebuilding embedding index..."
+                        )
+                        # Append to FAISS index incrementally so the new seed is
+                        # immediately queryable on the next run.
+                        from obscure import embeddings as emb
+                        emb.add_to_index([result.track])
+                        st.cache_resource.clear()
+                        st.rerun()
     else:
         seed_text = st.text_input(
             "Describe what you want",

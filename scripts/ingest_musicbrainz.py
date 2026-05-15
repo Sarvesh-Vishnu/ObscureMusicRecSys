@@ -1,7 +1,10 @@
-"""Grow the catalog by walking MusicBrainz from existing seed tracks.
+"""Grow the catalog by walking MusicBrainz from existing seed artists.
+
+Writes directly into the SQLite catalog (data/catalog.db). Run
+`python scripts/build_index.py` after to refresh embeddings.
 
 Usage:
-    python scripts/ingest_musicbrainz.py --depth 1 --per-artist 5
+    python scripts/ingest_musicbrainz.py --per-artist 5
 
 MusicBrainz is CC0, no API key required. We respect their 1 req/sec policy.
 Last.fm tag enrichment runs if LASTFM_API_KEY is configured.
@@ -36,15 +39,11 @@ def _lastfm_tags(artist: str, track: str) -> list[str]:
     try:
         r = requests.get(
             "https://ws.audioscrobbler.com/2.0/",
-            params={
-                "method": "track.getTopTags",
-                "artist": artist, "track": track,
-                "api_key": cfg.api_key, "format": "json",
-            },
+            params={"method": "track.getTopTags", "artist": artist, "track": track,
+                    "api_key": cfg.api_key, "format": "json"},
             timeout=10,
         )
-        tags = r.json().get("toptags", {}).get("tag", [])
-        return [t["name"].lower() for t in tags[:8]]
+        return [t["name"].lower() for t in r.json().get("toptags", {}).get("tag", [])[:8]]
     except Exception:
         return []
 
@@ -56,11 +55,8 @@ def _lastfm_listeners(artist: str, track: str) -> int | None:
     try:
         r = requests.get(
             "https://ws.audioscrobbler.com/2.0/",
-            params={
-                "method": "track.getInfo",
-                "artist": artist, "track": track,
-                "api_key": cfg.api_key, "format": "json",
-            },
+            params={"method": "track.getInfo", "artist": artist, "track": track,
+                    "api_key": cfg.api_key, "format": "json"},
             timeout=10,
         )
         n = r.json().get("track", {}).get("listeners")
@@ -70,9 +66,7 @@ def _lastfm_listeners(artist: str, track: str) -> int | None:
 
 
 def _expand_artist(artist: str, per_artist: int) -> Iterable[cat.Track]:
-    """Pull recordings for an artist; emit Track rows."""
     try:
-        # find artist
         ar = musicbrainzngs.search_artists(artist=artist, limit=1)
         artists = ar.get("artist-list", [])
         if not artists:
@@ -80,16 +74,14 @@ def _expand_artist(artist: str, per_artist: int) -> Iterable[cat.Track]:
         artist_mbid = artists[0]["id"]
         time.sleep(1.0)
 
-        # works by that artist
         recs = musicbrainzngs.browse_recordings(artist=artist_mbid, limit=per_artist)
         time.sleep(1.0)
 
-        for i, rec in enumerate(recs.get("recording-list", [])[:per_artist]):
+        for rec in recs.get("recording-list", [])[:per_artist]:
             title = rec.get("title", "").strip()
             if not title:
                 continue
             year_raw = rec.get("first-release-date") or ""
-            year = None
             try:
                 year = int(year_raw[:4]) if year_raw else None
             except ValueError:
@@ -107,6 +99,7 @@ def _expand_artist(artist: str, per_artist: int) -> Iterable[cat.Track]:
                 listener_count=listeners,
                 year=year,
                 mbid=rec["id"],
+                source=cat.SOURCE_CRAWL,
             )
             time.sleep(1.0)
     except musicbrainzngs.WebServiceError as exc:
@@ -117,30 +110,32 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--per-artist", type=int, default=3,
                         help="Recordings to pull per seed artist")
-    parser.add_argument("--out", default=str(config.CATALOG_PATH),
-                        help="Output parquet path")
+    parser.add_argument("--artists", type=str, default="",
+                        help="Comma-separated list of artists to crawl. "
+                             "Defaults to all artists already in catalog.")
     args = parser.parse_args()
 
     _mb_setup()
+    catalog = cat.open_catalog()
 
-    seed_tracks = cat.load_seed()
-    seed_artists = sorted({t.artist for t in seed_tracks})
-    print(f"Seed: {len(seed_tracks)} tracks across {len(seed_artists)} artists")
+    if args.artists:
+        artists = [a.strip() for a in args.artists.split(",") if a.strip()]
+    else:
+        all_tracks = catalog.all_tracks()
+        artists = sorted({t.artist for t in all_tracks})
 
-    grown: list[cat.Track] = list(seed_tracks)
-    seen_keys = {(t.title.lower(), t.artist.lower()) for t in grown}
+    print(f"Crawling {len(artists)} artists, up to {args.per_artist} tracks each")
 
-    for i, artist in enumerate(seed_artists, 1):
-        print(f"[{i}/{len(seed_artists)}] {artist}")
+    new_count = 0
+    for i, artist in enumerate(artists, 1):
+        print(f"[{i}/{len(artists)}] {artist}")
         for t in _expand_artist(artist, args.per_artist):
-            key = (t.title.lower(), t.artist.lower())
-            if key in seen_keys:
+            if catalog.exists(t.title, t.artist):
                 continue
-            seen_keys.add(key)
-            grown.append(t)
+            catalog.upsert(t)
+            new_count += 1
 
-    cat.save_parquet(grown, path=args.out)
-    print(f"Wrote {len(grown)} tracks to {args.out}")
+    print(f"\nAdded {new_count} new tracks. Total: {catalog.count()}")
 
 
 if __name__ == "__main__":
