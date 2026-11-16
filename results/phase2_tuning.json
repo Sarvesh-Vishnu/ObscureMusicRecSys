@@ -1,0 +1,847 @@
+{
+  "validation": {
+    "split": "2026-11-08",
+    "end": "2026-11-12",
+    "train_files": [
+      "2026-10-31",
+      "2026-11-01",
+      "2026-11-02",
+      "2026-11-03",
+      "2026-11-04",
+      "2026-11-05",
+      "2026-11-06",
+      "2026-11-07"
+    ],
+    "test_files": [
+      "2026-11-08",
+      "2026-11-09",
+      "2026-11-10",
+      "2026-11-11"
+    ],
+    "min_item_users": 10,
+    "min_user_items": 10,
+    "canonical_recordings": true,
+    "n_users": 29471,
+    "n_items": 142683,
+    "train_pairs": 4067084,
+    "eval_users": 25379,
+    "discoveries": 796469
+  },
+  "tune_users": 5000,
+  "selection_metric": "ndcg@20",
+  "best": {
+    "ItemKNN": {
+      "family": "ItemKNN",
+      "params": {
+        "k": 15,
+        "shrink": 20,
+        "max_user_items": 2000
+      },
+      "fit_seconds": 284.2,
+      "recall": 0.07557030254575146,
+      "ndcg": 0.06895502513951524,
+      "tail_recall": 0.029973279196599055,
+      "novelty": 8.409730291638772,
+      "coverage": 0.20211237498510684
+    },
+    "EASE": {
+      "family": "EASE",
+      "params": {
+        "lambda": 300,
+        "max_items": 15000
+      },
+      "fit_seconds": 222.2,
+      "recall": 0.06269371124489546,
+      "ndcg": 0.061107452033882736,
+      "tail_recall": 0.0,
+      "novelty": 7.316882260504019,
+      "coverage": 0.08071038596048583
+    },
+    "ALS": {
+      "family": "ALS",
+      "params": {
+        "factors": 512,
+        "alpha": 40,
+        "reg": 0.05,
+        "iterations": 15
+      },
+      "fit_seconds": 349.1,
+      "recall": 0.0763439786898688,
+      "ndcg": 0.06998553539534143,
+      "tail_recall": 0.018200032493005183,
+      "novelty": 7.884472515361757,
+      "coverage": 0.16498111197549814
+    },
+    "BPR": {
+      "family": "BPR",
+      "params": {
+        "factors": 128,
+        "lr": 0.01,
+        "reg": 0.001,
+        "iterations": 100
+      },
+      "fit_seconds": 159.0,
+      "recall": 0.04427632627692226,
+      "ndcg": 0.0416829642499657,
+      "tail_recall": 0.008139168908436429,
+      "novelty": 8.624074758463443,
+      "coverage": 0.19424878927412517
+    }
+  },
+  "rounds": 2,
+  "trials": [
+    {
+      "family": "ItemKNN",
+      "params": {
+        "k": 25,
+        "shrink": 0,
+        "max_user_items": 2000
+      },
+      "fit_seconds": 317.9,
+      "recall": 0.066238769425449,
+      "ndcg": 0.06010869214157933,
+      "tail_recall": 0.043221886755980175,
+      "novelty": 9.493139939987056,
+      "coverage": 0.276402935177982
+    },
+    {
+      "family": "ItemKNN",
+      "params": {
+        "k": 50,
+        "shrink": 0,
+        "max_user_items": 2000
+      },
+      "fit_seconds": 317.9,
+      "recall": 0.06398554997290291,
+      "ndcg": 0.058803539770608176,
+      "tail_recall": 0.03969489739551587,
+      "novelty": 9.405397627153102,
+      "coverage": 0.26694841011192644
+    },
+    {
+      "family": "ItemKNN",
+      "params": {
+        "k": 100,
+        "shrink": 0,
+        "max_user_items": 2000
+      },
+      "fit_seconds": 317.9,
+      "recall": 0.06291911701215881,
+      "ndcg": 0.05870444968778391,
+      "tail_recall": 0.03675816263387331,
+      "novelty": 9.307770913317613,
+      "coverage": 0.25956140535312544
+    },
+    {
+      "family": "ItemKNN",
+      "params": {
+        "k": 200,
+        "shrink": 0,
+        "max_user_items": 2000
+      },
+      "fit_seconds": 317.9,
+      "recall": 0.06258601503587573,
+      "ndcg": 0.058137405181675456,
+      "tail_recall": 0.034479154312762175,
+      "novelty": 9.202158581228833,
+      "coverage": 0.2537373057757406
+    },
+    {
+      "family": "ItemKNN",
+      "params": {
+        "k": 400,
+        "shrink": 0,
+        "max_user_items": 2000
+      },
+      "fit_seconds": 317.9,
+      "recall": 0.06232097669444419,
+      "ndcg": 0.05738592325694938,
+      "tail_recall": 0.03315719946183694,
+      "novelty": 9.131025462077371,
+      "coverage": 0.24937799177197004
+    },
+    {
+      "family": "ItemKNN",
+      "params": {
+        "k": 25,
+        "shrink": 10,
+        "max_user_items": 2000
+      },
+      "fit_seconds": 310.7,
+      "recall": 0.07179105286182685,
+      "ndcg": 0.06624194431851665,
+      "tail_recall": 0.03424278336189839,
+      "novelty": 8.682526317445815,
+      "coverage": 0.22671937091314312
+    },
+    {
+      "family": "ItemKNN",
+      "params": {
+        "k": 50,
+        "shrink": 10,
+        "max_user_items": 2000
+      },
+      "fit_seconds": 310.7,
+      "recall": 0.07005661250686018,
+      "ndcg": 0.06486637838022784,
+      "tail_recall": 0.031578802398277026,
+      "novelty": 8.557002019399171,
+      "coverage": 0.21858946055241338
+    },
+    {
+      "family": "ItemKNN",
+      "params": {
+        "k": 100,
+        "shrink": 10,
+        "max_user_items": 2000
+      },
+      "fit_seconds": 310.7,
+      "recall": 0.0686498282823128,
+      "ndcg": 0.06451558884424267,
+      "tail_recall": 0.02905284832553385,
+      "novelty": 8.415823094654922,
+      "coverage": 0.21207151517700076
+    },
+    {
+      "family": "ItemKNN",
+      "params": {
+        "k": 200,
+        "shrink": 10,
+        "max_user_items": 2000
+      },
+      "fit_seconds": 310.7,
+      "recall": 0.06763231503274847,
+      "ndcg": 0.06381377150702808,
+      "tail_recall": 0.02695123151173627,
+      "novelty": 8.273966600565355,
+      "coverage": 0.20387852792554123
+    },
+    {
+      "family": "ItemKNN",
+      "params": {
+        "k": 400,
+        "shrink": 10,
+        "max_user_items": 2000
+      },
+      "fit_seconds": 310.7,
+      "recall": 0.06633970603957445,
+      "ndcg": 0.06263905162145772,
+      "tail_recall": 0.024887923333744764,
+      "novelty": 8.151078877348139,
+      "coverage": 0.1974867363315882
+    },
+    {
+      "family": "ItemKNN",
+      "params": {
+        "k": 25,
+        "shrink": 100,
+        "max_user_items": 2000
+      },
+      "fit_seconds": 293.3,
+      "recall": 0.06839942851008642,
+      "ndcg": 0.06348735304861955,
+      "tail_recall": 0.014315252562688894,
+      "novelty": 7.354404519551564,
+      "coverage": 0.11901207572030305
+    },
+    {
+      "family": "ItemKNN",
+      "params": {
+        "k": 50,
+        "shrink": 100,
+        "max_user_items": 2000
+      },
+      "fit_seconds": 293.3,
+      "recall": 0.06380049433194944,
+      "ndcg": 0.0599101606983809,
+      "tail_recall": 0.012796954450046194,
+      "novelty": 7.198132707482206,
+      "coverage": 0.11175823328637609
+    },
+    {
+      "family": "ItemKNN",
+      "params": {
+        "k": 100,
+        "shrink": 100,
+        "max_user_items": 2000
+      },
+      "fit_seconds": 293.3,
+      "recall": 0.06023030832170925,
+      "ndcg": 0.05749878556555232,
+      "tail_recall": 0.011268198499598514,
+      "novelty": 7.011795182710133,
+      "coverage": 0.10284336606323108
+    },
+    {
+      "family": "ItemKNN",
+      "params": {
+        "k": 200,
+        "shrink": 100,
+        "max_user_items": 2000
+      },
+      "fit_seconds": 293.3,
+      "recall": 0.056806999593114145,
+      "ndcg": 0.054534418047400245,
+      "tail_recall": 0.010139615798631355,
+      "novelty": 6.834550604148647,
+      "coverage": 0.09500781452590708
+    },
+    {
+      "family": "ItemKNN",
+      "params": {
+        "k": 400,
+        "shrink": 100,
+        "max_user_items": 2000
+      },
+      "fit_seconds": 293.3,
+      "recall": 0.05561810531230036,
+      "ndcg": 0.05350412195305895,
+      "tail_recall": 0.009647995872600543,
+      "novelty": 6.692841264779025,
+      "coverage": 0.08779602335246665
+    },
+    {
+      "family": "EASE",
+      "params": {
+        "lambda": 100,
+        "max_items": 15000
+      },
+      "fit_seconds": 277.3,
+      "recall": 0.06171377196418992,
+      "ndcg": 0.06051551809561827,
+      "tail_recall": 0.0,
+      "novelty": 7.393325915507599,
+      "coverage": 0.08476833259743627
+    },
+    {
+      "family": "EASE",
+      "params": {
+        "lambda": 300,
+        "max_items": 15000
+      },
+      "fit_seconds": 222.2,
+      "recall": 0.06269371124489546,
+      "ndcg": 0.061107452033882736,
+      "tail_recall": 0.0,
+      "novelty": 7.316882260504019,
+      "coverage": 0.08071038596048583
+    },
+    {
+      "family": "EASE",
+      "params": {
+        "lambda": 1000,
+        "max_items": 15000
+      },
+      "fit_seconds": 201.8,
+      "recall": 0.06086562693670279,
+      "ndcg": 0.05960631765014409,
+      "tail_recall": 0.0,
+      "novelty": 7.178614348184222,
+      "coverage": 0.07539791005235381
+    },
+    {
+      "family": "EASE",
+      "params": {
+        "lambda": 3000,
+        "max_items": 15000
+      },
+      "fit_seconds": 196.2,
+      "recall": 0.058486496126852174,
+      "ndcg": 0.05769943462373182,
+      "tail_recall": 0.0,
+      "novelty": 7.004230830217668,
+      "coverage": 0.06931449436863536
+    },
+    {
+      "family": "ALS",
+      "params": {
+        "factors": 128,
+        "alpha": 2,
+        "reg": 0.05,
+        "iterations": 15
+      },
+      "fit_seconds": 45.0,
+      "recall": 0.04705580070084714,
+      "ndcg": 0.04563460336604948,
+      "tail_recall": 0.0019923549857289243,
+      "novelty": 6.610645530092288,
+      "coverage": 0.06023843064695864
+    },
+    {
+      "family": "ALS",
+      "params": {
+        "factors": 128,
+        "alpha": 10,
+        "reg": 0.05,
+        "iterations": 15
+      },
+      "fit_seconds": 41.7,
+      "recall": 0.057536675550112076,
+      "ndcg": 0.05564441594426906,
+      "tail_recall": 0.0018474589727398385,
+      "novelty": 6.940863462486649,
+      "coverage": 0.06514441103705416
+    },
+    {
+      "family": "ALS",
+      "params": {
+        "factors": 128,
+        "alpha": 40,
+        "reg": 0.05,
+        "iterations": 15
+      },
+      "fit_seconds": 41.5,
+      "recall": 0.06158147549474949,
+      "ndcg": 0.058938259198178494,
+      "tail_recall": 0.004848794799695292,
+      "novelty": 7.2553747003785265,
+      "coverage": 0.09366217419033802
+    },
+    {
+      "family": "ALS",
+      "params": {
+        "factors": 256,
+        "alpha": 2,
+        "reg": 0.05,
+        "iterations": 15
+      },
+      "fit_seconds": 202.8,
+      "recall": 0.05576780092456563,
+      "ndcg": 0.05359566167584463,
+      "tail_recall": 0.003114626275944638,
+      "novelty": 6.863931023122615,
+      "coverage": 0.0707792799422496
+    },
+    {
+      "family": "ALS",
+      "params": {
+        "factors": 256,
+        "alpha": 10,
+        "reg": 0.05,
+        "iterations": 15
+      },
+      "fit_seconds": 252.7,
+      "recall": 0.06722054537309954,
+      "ndcg": 0.06401150094741459,
+      "tail_recall": 0.004720377989463665,
+      "novelty": 7.222719140923969,
+      "coverage": 0.09032610752507306
+    },
+    {
+      "family": "ALS",
+      "params": {
+        "factors": 256,
+        "alpha": 40,
+        "reg": 0.05,
+        "iterations": 15
+      },
+      "fit_seconds": 174.8,
+      "recall": 0.06924359749899223,
+      "ndcg": 0.06439635084103763,
+      "tail_recall": 0.00890686596532746,
+      "novelty": 7.499643175949302,
+      "coverage": 0.12288780022847852
+    },
+    {
+      "family": "BPR",
+      "params": {
+        "factors": 128,
+        "lr": 0.01,
+        "reg": 0.001,
+        "iterations": 100
+      },
+      "fit_seconds": 159.0,
+      "recall": 0.04427632627692226,
+      "ndcg": 0.0416829642499657,
+      "tail_recall": 0.008139168908436429,
+      "novelty": 8.624074758463443,
+      "coverage": 0.19424878927412517
+    },
+    {
+      "family": "BPR",
+      "params": {
+        "factors": 128,
+        "lr": 0.05,
+        "reg": 0.001,
+        "iterations": 100
+      },
+      "fit_seconds": 157.4,
+      "recall": 0.04174981012623427,
+      "ndcg": 0.0384830896667816,
+      "tail_recall": 0.016230744085007433,
+      "novelty": 9.131319877122401,
+      "coverage": 0.2856401953981904
+    },
+    {
+      "family": "BPR",
+      "params": {
+        "factors": 256,
+        "lr": 0.05,
+        "reg": 0.001,
+        "iterations": 100
+      },
+      "fit_seconds": 229.2,
+      "recall": 0.04530642156690918,
+      "ndcg": 0.04137010261374356,
+      "tail_recall": 0.01945055321279296,
+      "novelty": 9.292567211388453,
+      "coverage": 0.30195608446696526
+    },
+    {
+      "family": "ItemKNN",
+      "params": {
+        "k": 5,
+        "shrink": 2,
+        "max_user_items": 2000
+      },
+      "fit_seconds": 293.8,
+      "recall": 0.06450294936487662,
+      "ndcg": 0.06011765297812818,
+      "tail_recall": 0.04402274096330809,
+      "novelty": 9.40314130409157,
+      "coverage": 0.27826720772621827
+    },
+    {
+      "family": "ItemKNN",
+      "params": {
+        "k": 10,
+        "shrink": 2,
+        "max_user_items": 2000
+      },
+      "fit_seconds": 293.8,
+      "recall": 0.07217978847949437,
+      "ndcg": 0.065492069311752,
+      "tail_recall": 0.04740077489535925,
+      "novelty": 9.336091198243992,
+      "coverage": 0.28315917102948496
+    },
+    {
+      "family": "ItemKNN",
+      "params": {
+        "k": 15,
+        "shrink": 2,
+        "max_user_items": 2000
+      },
+      "fit_seconds": 293.8,
+      "recall": 0.07217536112666144,
+      "ndcg": 0.06480526366252122,
+      "tail_recall": 0.046372393387541316,
+      "novelty": 9.286311855640754,
+      "coverage": 0.2801525059046978
+    },
+    {
+      "family": "ItemKNN",
+      "params": {
+        "k": 25,
+        "shrink": 2,
+        "max_user_items": 2000
+      },
+      "fit_seconds": 293.8,
+      "recall": 0.06940093147049028,
+      "ndcg": 0.06320476708909836,
+      "tail_recall": 0.041639490517298684,
+      "novelty": 9.218496576986507,
+      "coverage": 0.2708942200542461
+    },
+    {
+      "family": "ItemKNN",
+      "params": {
+        "k": 5,
+        "shrink": 5,
+        "max_user_items": 2000
+      },
+      "fit_seconds": 286.7,
+      "recall": 0.06527464439842924,
+      "ndcg": 0.06124771207058179,
+      "tail_recall": 0.03983463387127773,
+      "novelty": 9.133727171327276,
+      "coverage": 0.2564706377073653
+    },
+    {
+      "family": "ItemKNN",
+      "params": {
+        "k": 10,
+        "shrink": 5,
+        "max_user_items": 2000
+      },
+      "fit_seconds": 286.7,
+      "recall": 0.07404416365626118,
+      "ndcg": 0.06719279165703625,
+      "tail_recall": 0.04448452462297066,
+      "novelty": 9.087338917175307,
+      "coverage": 0.2623017458281645
+    },
+    {
+      "family": "ItemKNN",
+      "params": {
+        "k": 15,
+        "shrink": 5,
+        "max_user_items": 2000
+      },
+      "fit_seconds": 286.7,
+      "recall": 0.07338956466821792,
+      "ndcg": 0.0667857984789812,
+      "tail_recall": 0.04220478730685464,
+      "novelty": 9.041971004534354,
+      "coverage": 0.2605285843443157
+    },
+    {
+      "family": "ItemKNN",
+      "params": {
+        "k": 25,
+        "shrink": 5,
+        "max_user_items": 2000
+      },
+      "fit_seconds": 286.7,
+      "recall": 0.07074110226031277,
+      "ndcg": 0.06491332628189275,
+      "tail_recall": 0.038623568088927154,
+      "novelty": 8.965081330503315,
+      "coverage": 0.2515296146001976
+    },
+    {
+      "family": "ItemKNN",
+      "params": {
+        "k": 5,
+        "shrink": 10,
+        "max_user_items": 2000
+      },
+      "fit_seconds": 281.4,
+      "recall": 0.0666171618525953,
+      "ndcg": 0.06214059331912248,
+      "tail_recall": 0.034606049985168086,
+      "novelty": 8.841080507530382,
+      "coverage": 0.23102261656959833
+    },
+    {
+      "family": "ItemKNN",
+      "params": {
+        "k": 10,
+        "shrink": 10,
+        "max_user_items": 2000
+      },
+      "fit_seconds": 281.4,
+      "recall": 0.07425080575685065,
+      "ndcg": 0.06780669400237106,
+      "tail_recall": 0.038653890150424204,
+      "novelty": 8.809044814588194,
+      "coverage": 0.23657338295382072
+    },
+    {
+      "family": "ItemKNN",
+      "params": {
+        "k": 15,
+        "shrink": 10,
+        "max_user_items": 2000
+      },
+      "fit_seconds": 281.4,
+      "recall": 0.07412405401186362,
+      "ndcg": 0.06791183589878304,
+      "tail_recall": 0.03596983709837694,
+      "novelty": 8.761384601050459,
+      "coverage": 0.23494039233826033
+    },
+    {
+      "family": "ItemKNN",
+      "params": {
+        "k": 25,
+        "shrink": 10,
+        "max_user_items": 2000
+      },
+      "fit_seconds": 281.4,
+      "recall": 0.07171872039037673,
+      "ndcg": 0.06618520575070665,
+      "tail_recall": 0.034127583023377206,
+      "novelty": 8.683827611951891,
+      "coverage": 0.22663526839217005
+    },
+    {
+      "family": "ItemKNN",
+      "params": {
+        "k": 5,
+        "shrink": 20,
+        "max_user_items": 2000
+      },
+      "fit_seconds": 284.2,
+      "recall": 0.06647457543230763,
+      "ndcg": 0.06244973893295054,
+      "tail_recall": 0.027096127616473967,
+      "novelty": 8.477777237884382,
+      "coverage": 0.19958929935591485
+    },
+    {
+      "family": "ItemKNN",
+      "params": {
+        "k": 10,
+        "shrink": 20,
+        "max_user_items": 2000
+      },
+      "fit_seconds": 284.2,
+      "recall": 0.07385701571905906,
+      "ndcg": 0.06846402411743947,
+      "tail_recall": 0.030631485208033563,
+      "novelty": 8.465275780087362,
+      "coverage": 0.20523818534793914
+    },
+    {
+      "family": "ItemKNN",
+      "params": {
+        "k": 15,
+        "shrink": 20,
+        "max_user_items": 2000
+      },
+      "fit_seconds": 284.2,
+      "recall": 0.07557030254575146,
+      "ndcg": 0.06895502513951524,
+      "tail_recall": 0.029973279196599055,
+      "novelty": 8.409730291638772,
+      "coverage": 0.20211237498510684
+    },
+    {
+      "family": "ItemKNN",
+      "params": {
+        "k": 25,
+        "shrink": 20,
+        "max_user_items": 2000
+      },
+      "fit_seconds": 284.2,
+      "recall": 0.07263017636474293,
+      "ndcg": 0.0672078608251883,
+      "tail_recall": 0.02795457128783464,
+      "novelty": 8.32157814644753,
+      "coverage": 0.19439596868582804
+    },
+    {
+      "family": "ALS",
+      "params": {
+        "factors": 256,
+        "alpha": 80,
+        "reg": 0.05,
+        "iterations": 15
+      },
+      "fit_seconds": 177.1,
+      "recall": 0.06752740148654236,
+      "ndcg": 0.06234027140776206,
+      "tail_recall": 0.012453590730765154,
+      "novelty": 7.613191671375965,
+      "coverage": 0.14036710750404743
+    },
+    {
+      "family": "ALS",
+      "params": {
+        "factors": 256,
+        "alpha": 160,
+        "reg": 0.05,
+        "iterations": 15
+      },
+      "fit_seconds": 141.7,
+      "recall": 0.0647095196607658,
+      "ndcg": 0.05892964550828226,
+      "tail_recall": 0.014540696264168212,
+      "novelty": 7.699291507981892,
+      "coverage": 0.155085048674334
+    },
+    {
+      "family": "ALS",
+      "params": {
+        "factors": 512,
+        "alpha": 40,
+        "reg": 0.05,
+        "iterations": 15
+      },
+      "fit_seconds": 349.1,
+      "recall": 0.0763439786898688,
+      "ndcg": 0.06998553539534143,
+      "tail_recall": 0.018200032493005183,
+      "novelty": 7.884472515361757,
+      "coverage": 0.16498111197549814
+    },
+    {
+      "family": "ALS",
+      "params": {
+        "factors": 512,
+        "alpha": 80,
+        "reg": 0.05,
+        "iterations": 15
+      },
+      "fit_seconds": 310.7,
+      "recall": 0.0756376463148135,
+      "ndcg": 0.06869813559029678,
+      "tail_recall": 0.022041961556957396,
+      "novelty": 7.978562541907414,
+      "coverage": 0.1822501629486344
+    },
+    {
+      "family": "ALS",
+      "params": {
+        "factors": 512,
+        "alpha": 160,
+        "reg": 0.05,
+        "iterations": 15
+      },
+      "fit_seconds": 329.1,
+      "recall": 0.07243666152474976,
+      "ndcg": 0.06552483755344253,
+      "tail_recall": 0.02478719039959771,
+      "novelty": 8.024526741369604,
+      "coverage": 0.19377921686535887
+    },
+    {
+      "family": "BPR",
+      "params": {
+        "factors": 128,
+        "lr": 0.005,
+        "reg": 0.001,
+        "iterations": 100
+      },
+      "fit_seconds": 169.4,
+      "recall": 0.04191224060081645,
+      "ndcg": 0.040203018306350626,
+      "tail_recall": 0.003274398659067961,
+      "novelty": 8.183294838462938,
+      "coverage": 0.1288170279570797
+    }
+  ],
+  "cap_check": {
+    "params": {
+      "k": 15,
+      "shrink": 20,
+      "max_user_items": 2000
+    },
+    "runs": [
+      {
+        "max_user_items": 2000,
+        "fit_seconds": 299.1,
+        "recall": 0.0754461942357608,
+        "ndcg": 0.06899303916450493,
+        "tail_recall": 0.02985167319581412,
+        "novelty": 8.410293300942662
+      },
+      {
+        "max_user_items": null,
+        "fit_seconds": 2205.2,
+        "recall": 0.07255247747264776,
+        "ndcg": 0.06625207829342722,
+        "tail_recall": 0.031101651075774686,
+        "novelty": 8.535113051941398
+      }
+    ],
+    "capped_minus_uncapped": {
+      "recall": {
+        "mean": 0.0028937167631130477,
+        "lo": 0.001240193086132134,
+        "hi": 0.004499262116366604
+      },
+      "ndcg": {
+        "mean": 0.0027409608710777084,
+        "lo": 0.0015947778337992381,
+        "hi": 0.004015925949655298
+      },
+      "tail_recall": {
+        "mean": -0.0012499778799605684,
+        "lo": -0.002758579123597463,
+        "hi": 0.0001364551764705487
+      }
+    }
+  }
+}

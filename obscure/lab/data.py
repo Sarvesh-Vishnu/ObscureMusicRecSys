@@ -31,6 +31,7 @@ import scipy.sparse as sp
 
 ROOT = Path(__file__).resolve().parents[2]
 LISTENS = ROOT / "data" / "listens"
+REDIRECT = ROOT / "data" / "canonical_redirect.parquet"
 CACHE = ROOT / "data" / "eval"
 
 
@@ -75,7 +76,10 @@ def head_mask(popularity: np.ndarray, head_share: float = 0.5) -> np.ndarray:
 
 def build(split: str = "2026-11-12", end: str = "2026-11-16",
           min_item_users: int = 10, min_user_items: int = 10,
-          listens_dir: Path = LISTENS) -> Dataset:
+          listens_dir: Path = LISTENS,
+          redirect: Path | None = REDIRECT) -> Dataset:
+    """See module docstring. With `redirect` (scripts/fetch_canonical.py), every
+    recording id is first mapped to its MusicBrainz canonical recording."""
     files = sorted(p for p in listens_dir.glob("*.parquet"))
     train_files = [str(p) for p in files if p.stem < split]
     test_files = [str(p) for p in files if split <= p.stem < end]
@@ -83,16 +87,34 @@ def build(split: str = "2026-11-12", end: str = "2026-11-16",
         raise RuntimeError(f"need files before and after {split} in {listens_dir}")
 
     con = duckdb.connect()
-    con.execute("SET memory_limit='3GB'")
+    spill = ROOT / "data" / "raw" / "duckdb_tmp"
+    spill.mkdir(parents=True, exist_ok=True)
+    con.execute(f"SET memory_limit='3GB'; SET threads=4; SET preserve_insertion_order=false; "
+                f"SET temp_directory='{spill}'")
+    canonical = redirect is not None and Path(redirect).exists()
+    # Aggregate raw listens to distinct (user, recording) pairs first (~12M rows
+    # vs ~46M listens), then map recordings to canonical ids and re-aggregate.
     con.execute(f"""
-        CREATE TEMP TABLE train AS
-        SELECT user_id, recording_mbid AS mbid, count(*)::INT AS plays,
+        CREATE TEMP TABLE train_raw AS
+        SELECT user_id, recording_mbid, count(*)::INT AS plays,
                any_value(artist_credit_id) AS artist_credit_id,
                any_value(artist_name) AS artist, any_value(recording_name) AS title
         FROM read_parquet({train_files})
         WHERE listened_at < TIMESTAMP '{split}'
         GROUP BY 1, 2
     """)
+    mapped = ("coalesce(r.canonical_recording_mbid, t.recording_mbid)" if canonical
+              else "t.recording_mbid")
+    join = (f"LEFT JOIN read_parquet('{redirect}') r USING (recording_mbid)" if canonical else "")
+    con.execute(f"""
+        CREATE TEMP TABLE train AS
+        SELECT t.user_id, {mapped} AS mbid, sum(t.plays)::INT AS plays,
+               any_value(t.artist_credit_id) AS artist_credit_id,
+               any_value(t.artist) AS artist, any_value(t.title) AS title
+        FROM train_raw t {join}
+        GROUP BY 1, 2
+    """)
+    con.execute("DROP TABLE train_raw")
     con.execute(f"""
         CREATE TEMP TABLE items AS
         SELECT mbid, count(*)::INT AS listeners,
@@ -128,9 +150,11 @@ def build(split: str = "2026-11-12", end: str = "2026-11-16",
     items["listeners"] = np.asarray(X.sum(axis=0)).ravel().astype(int)
 
     test = con.execute(f"""
-        SELECT DISTINCT user_id, recording_mbid AS mbid
-        FROM read_parquet({test_files})
-        WHERE listened_at >= TIMESTAMP '{split}' AND listened_at < TIMESTAMP '{end}'
+        WITH t AS (
+            SELECT DISTINCT user_id, recording_mbid FROM read_parquet({test_files})
+            WHERE listened_at >= TIMESTAMP '{split}' AND listened_at < TIMESTAMP '{end}'
+        )
+        SELECT DISTINCT t.user_id, {mapped} AS mbid FROM t {join}
     """).df()
     test = test[test["user_id"].isin(user_index.index) & test["mbid"].isin(item_index.index)]
     t_rows = user_index[test["user_id"]].to_numpy()
@@ -154,6 +178,7 @@ def build(split: str = "2026-11-12", end: str = "2026-11-16",
         "train_files": [Path(f).stem for f in train_files],
         "test_files": [Path(f).stem for f in test_files],
         "min_item_users": min_item_users, "min_user_items": min_user_items,
+        "canonical_recordings": bool(canonical),
         "n_users": int(shape[0]), "n_items": int(shape[1]),
         "train_pairs": int(X.nnz),
         "eval_users": int(len(eval_users)),

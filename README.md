@@ -47,23 +47,36 @@ Three fixes keep the default results on-topic (`obscure/recommender.py`, tested 
 
 ## Offline discovery benchmark
 
-Can a model predict the recordings people go on to **discover**? Six recommenders, one leakage-free temporal split over 16 days of [ListenBrainz](https://listenbrainz.org) listens (CC0): 33,496 listeners, 219,859 recordings, 10,000 evaluated listeners, 315,152 discoveries. Protocol in [docs/PROTOCOL.md](docs/PROTOCOL.md), full table with CIs in [results/phase1.md](results/phase1.md).
+Can a model predict the recordings people go on to **discover**? One leakage-free temporal split over 16 days of [ListenBrainz](https://listenbrainz.org) listens (CC0), merged to MusicBrainz canonical recordings: 33,575 listeners, 219,876 recordings, 10,000 evaluated listeners, 325,376 discoveries (46% long-tail). Protocol in [docs/PROTOCOL.md](docs/PROTOCOL.md).
 
-| Model | Recall@20 | Tail recall@20 | Novelty (bits) | Coverage |
+Every model is tuned on a validation split inside the training window, then scored once on the test window. Full tables with 95% CIs and paired differences: [results/phase2.md](results/phase2.md) (tuned) and [results/phase1.md](results/phase1.md) (untuned defaults).
+
+| Model (tuned) | Recall@20 | Tail recall@20 | Novelty (bits) | Coverage |
 |---|---|---|---|---|
-| RandomTail (v1's idea) | 0.02% | 0.02% | 11.0 | — |
 | Popularity | 1.02% | 0.00% | 4.8 | 0.0% |
-| ItemKNN | 5.34% | **2.22%** | 8.5 | 22.5% |
-| EASE (top 15k items) | **5.52%** | 0.00% | 7.0 | 5.8% |
-| ALS | 5.15% | 0.13% | 6.7 | 5.5% |
-| BPR | 3.70% | 1.34% | 9.0 | 28.7% |
+| ItemKNN (k=15, shrink=20) | **6.87%** | **2.54%** | 8.3 | 20.3% |
+| EASE (λ=300, top 15k items) | 5.68% | 0.00% | 7.1 | 5.9% |
+| ALS (512 factors, α=40) | 6.71% | 1.21% | 7.5 | 14.3% |
+| BPR (128 factors) | 3.99% | 0.63% | 8.6 | 20.4% |
 
-ItemKNN, EASE and ALS are close on overall recall, but they differ roughly 17× on long-tail recall. Overall accuracy alone would pick the wrong model for a discovery product. Hyperparameters are untuned defaults for now.
+ItemKNN and ALS are statistically tied on recall (paired difference −0.16 pp, CI [−0.39, +0.08]), but ItemKNN finds twice as much of the long tail. Overall accuracy alone can't separate them; a discovery product should.
+
+**Re-rankers** take ItemKNN's top 200 and choose the final 20. Each has one knob, swept to trace the trade-off instead of picking a flattering point:
+
+| On tuned ItemKNN | Δ Recall | Δ Tail recall | Δ Novelty |
+|---|---|---|---|
+| Calibrated λ=0.2 (match the listener's head/mid/tail mix) | +0.01 pp (tied) | **+0.19 pp** | +0.06 bits |
+| PopPenalty β=0.25 (score ÷ popularity^β) | −0.22 pp | **+1.13 pp (+44%)** | +0.81 bits |
+| PopPenalty β=1 | −1.90 pp | +2.98 pp (+117%) | +2.40 bits |
+| MMR λ=0.5 (penalise similarity to picks so far) | −0.77 pp | +0.09 pp (tied) | +0.13 bits |
+
+Calibration is a free win at low strength. A mild popularity penalty buys 44% more long-tail discoveries for 3% of recall. MMR raises artist diversity (37% → 61% distinct artists) but not obscurity: diversity and discovery are different goals.
 
 ```bash
 pip install -r requirements-lab.txt
 python scripts/fetch_listenbrainz.py      # ~4 GB download, ~1.5 GB kept
-python scripts/run_eval.py --rebuild      # ~20 min on an 8 GB laptop
+python scripts/fetch_canonical.py         # 2.4 GB download, 60 MB kept
+python scripts/run_phase2.py --stage all  # several hours on an 8 GB laptop
 ```
 
 ## Quickstart

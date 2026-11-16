@@ -43,7 +43,9 @@ def top_k(model: Recommender, X: sp.csr_matrix, users: np.ndarray, k: int,
         seen = X[u]
         S[np.repeat(np.arange(len(u)), np.diff(seen.indptr)), seen.indices] = -np.inf
         part = np.argpartition(-S, k, axis=1)[:, :k]
-        order = np.argsort(-np.take_along_axis(S, part, axis=1), axis=1)
+        # order by score, ties broken by item index, so lists of different
+        # lengths agree on their common prefix
+        order = np.lexsort((part, -np.take_along_axis(S, part, axis=1)), axis=1)
         out[s:s + len(u)] = np.take_along_axis(part, order, axis=1)
     return out
 
@@ -77,39 +79,100 @@ class RandomTail(Recommender):
         return S
 
 
+def cap_history(plays: sp.csr_matrix, cap: int | None) -> sp.csr_matrix:
+    """Binary matrix where users with more than `cap` items keep only their
+    `cap` most-played ones (ties by item index). Used only to compute item-item
+    similarity: co-occurrence cost grows with |history|², and in this data the
+    top 1% of users (bulk-imported libraries of up to ~32k recordings) account
+    for 95% of it while linking everything to everything."""
+    P = plays.tocsr()
+    if cap is None:
+        X = P.copy()
+        X.data[:] = 1.0
+        return X
+    lens = np.diff(P.indptr)
+    rows = np.repeat(np.arange(P.shape[0]), lens)
+    order = np.lexsort((P.indices, -P.data, rows))
+    r_sorted = rows[order]
+    rank = np.arange(len(order)) - np.searchsorted(r_sorted, r_sorted, side="left")
+    keep = order[rank < cap]
+    return sp.csr_matrix((np.ones(len(keep), np.float32), (rows[keep], P.indices[keep])),
+                         shape=P.shape)
+
+
+def itemknn_neighbours(X: sp.csr_matrix, configs: list[tuple[int, float]],
+                       max_nnz: int = 30_000_000) -> dict[tuple[int, float], sp.csr_matrix]:
+    """Top-k shrunk-cosine neighbour matrices for several (k, shrink) configs in
+    one pass over the co-occurrence matrix.
+
+    Works on sparse co-occurrence rows only: each item's row holds just the
+    items it co-occurs with, so nothing proportional to (chunk x n_items) is
+    ever allocated. Chunks are sized by co-occurrence nnz, not row count.
+    """
+    Xc = X.tocsc().astype(np.float32)
+    n = X.shape[1]
+    norms = np.sqrt(np.asarray(Xc.sum(axis=0)).ravel())   # binary X: |U_i|
+    XT = Xc.T.tocsr()
+    # co-occurrence nnz per item row is bounded by sum over its users of their
+    # history length; use that bound to size chunks.
+    user_len = np.diff(X.indptr).astype(np.int64)
+    bound = np.asarray(XT @ user_len.astype(np.float32)).ravel()
+    parts = {c: ([], [], []) for c in configs}
+
+    s = 0
+    while s < n:
+        cum = np.cumsum(bound[s:])
+        e = s + max(1, int(np.searchsorted(cum, max_nnz)))
+        co = (XT[s:e] @ Xc).tocsr()
+        rows = np.repeat(np.arange(s, e), np.diff(co.indptr))
+        cols, raw = co.indices, co.data
+        keep = cols != rows
+        rows, cols, raw = rows[keep], cols[keep], raw[keep]
+        denom_base = norms[rows] * norms[cols]
+        for (k, shrink) in configs:
+            vals = raw / (denom_base + shrink)
+            order = np.lexsort((-vals, rows))
+            r_sorted = rows[order]
+            first = np.searchsorted(r_sorted, r_sorted, side="left")
+            rank = np.arange(len(order)) - first
+            top = order[rank < k]
+            R, C, V = parts[(k, shrink)]
+            R.append(rows[top]); C.append(cols[top]); V.append(vals[top])
+        s = e
+
+    out = {}
+    for c, (R, C, V) in parts.items():
+        out[c] = sp.csr_matrix((np.concatenate(V), (np.concatenate(R), np.concatenate(C))),
+                               shape=(n, n), dtype=np.float32)
+    return out
+
+
+def truncate_neighbours(W: sp.csr_matrix, k: int) -> sp.csr_matrix:
+    """Keep each row's k largest entries. Exact: the top-k of a top-K list (K >= k)
+    is the top-k of the full row, so one wide fit serves every smaller k."""
+    W = W.tocsr()
+    rows = np.repeat(np.arange(W.shape[0]), np.diff(W.indptr))
+    order = np.lexsort((-W.data, rows))
+    r_sorted = rows[order]
+    rank = np.arange(len(order)) - np.searchsorted(r_sorted, r_sorted, side="left")
+    top = order[rank < k]
+    return sp.csr_matrix((W.data[top], (rows[top], W.indices[top])), shape=W.shape)
+
+
 class ItemKNN(Recommender):
     """score(u, j) = sum_{i in u} sim(i, j), keeping each item's top `k` neighbours.
     sim(i, j) = |U_i ∩ U_j| / (sqrt(|U_i| |U_j|) + shrink)."""
     name = "ItemKNN"
 
-    def __init__(self, k: int = 100, shrink: float = 10.0, chunk: int | None = None):
-        self.k, self.shrink, self.chunk = k, shrink, chunk
+    def __init__(self, k: int = 100, shrink: float = 10.0, W: sp.csr_matrix | None = None):
+        self.k, self.shrink, self.W = k, shrink, W
 
     def params(self):
         return {"k": self.k, "shrink": self.shrink}
 
     def fit(self, X):
-        Xc = X.tocsc().astype(np.float32)
-        n = X.shape[1]
-        norms = np.sqrt(np.asarray(Xc.power(2).sum(axis=0)).ravel())
-        XT = Xc.T.tocsr()
-        chunk = self.chunk or max(64, int(5e7 // n))  # ~200 MB dense block
-        rows, cols, vals = [], [], []
-        for s in range(0, n, chunk):
-            e = min(s + chunk, n)
-            co = (XT[s:e] @ Xc).toarray()                     # (chunk, n)
-            co /= np.outer(norms[s:e], norms) + self.shrink
-            co[np.arange(e - s), np.arange(s, e)] = 0.0        # no self-similarity
-            kk = min(self.k, n - 1)
-            idx = np.argpartition(-co, kk, axis=1)[:, :kk]
-            v = np.take_along_axis(co, idx, axis=1)
-            keep = v > 0
-            rows.append(np.repeat(np.arange(s, e), kk)[keep.ravel()])
-            cols.append(idx[keep])
-            vals.append(v[keep])
-        # W[i, j] = sim(i, j) for j among i's neighbours
-        self.W = sp.csr_matrix((np.concatenate(vals), (np.concatenate(rows), np.concatenate(cols))),
-                               shape=(n, n), dtype=np.float32)
+        if self.W is None:
+            self.W = itemknn_neighbours(X, [(self.k, self.shrink)])[(self.k, self.shrink)]
         return self
 
     def score(self, users, X):
@@ -127,11 +190,17 @@ class EASE(Recommender):
     def params(self):
         return {"lambda": self.lam, "max_items": self.max_items}
 
-    def fit(self, X):
+    @staticmethod
+    def gram(X, max_items: int) -> tuple[np.ndarray, np.ndarray]:
+        """(columns kept, XᵀX over them). Reusable across λ values."""
         pop = np.asarray(X.sum(axis=0)).ravel()
-        self.cols = np.sort(np.argsort(-pop, kind="stable")[: self.max_items])
-        Xs = X[:, self.cols].astype(np.float32)
-        G = (Xs.T @ Xs).toarray()
+        cols = np.sort(np.argsort(-pop, kind="stable")[:max_items])
+        Xs = X[:, cols].astype(np.float32)
+        return cols, (Xs.T @ Xs).toarray()
+
+    def fit(self, X, gram: tuple[np.ndarray, np.ndarray] | None = None):
+        self.cols, G = gram if gram is not None else self.gram(X, self.max_items)
+        G = G.copy() if gram is not None else G
         G[np.diag_indices_from(G)] += self.lam
         P = np.linalg.inv(G)
         del G

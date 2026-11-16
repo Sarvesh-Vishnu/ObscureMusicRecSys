@@ -16,3 +16,4 @@ data/raw/
 data/listens/
 data/eval/
 *.log
+data/eval_val/
