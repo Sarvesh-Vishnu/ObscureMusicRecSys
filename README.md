@@ -13,7 +13,16 @@ free-text seed ──▶ sentence-transformer embedding (all-MiniLM-L6-v2)
                    FAISS k-NN over catalog
                           │
                           ▼
-        blend  cosine similarity × obscurity prior
+      relevance pool (top 3k by similarity)
+                          │
+                          ▼
+   blend similarity × obscurity, both scaled within the pool
+                          │
+                          ▼
+   LinUCB re-rank (off until 10 ratings, full strength at 30)
+                          │
+                          ▼
+              one track per artist
                           │
                           ▼
    Ollama gemma3:4b narrative ("why this is a kindred pick")
@@ -26,7 +35,15 @@ Two seed modes:
 - **Seed by track** — pick anything in the catalog; its tags + description become the query.
 - **Seed by free text** — type *"hazy reverb-soaked 1970s Turkish psych with fuzz guitar"* and the embedder handles it.
 
-A single slider trades **similarity ↔ obscurity** (default 0.4): higher means push deeper into the long tail at the cost of closer matches.
+A single slider trades **similarity ↔ obscurity** (default 0.4). It only reorders the closest matches, so a higher setting surfaces the most obscure *relevant* tracks rather than obscure unrelated ones.
+
+## Ranking guards
+
+Three fixes keep the default results on-topic (`obscure/recommender.py`, tested in `tests/test_ranking.py`):
+
+- **Relevance pool.** Obscurity can reorder relevant tracks but can't pull in irrelevant ones.
+- **Common scale.** Raw cosine similarity spans ~0.15 across the top 80 candidates while obscurity spans ~0.5, so an unscaled blend let obscurity outweigh relevance about 2:1. Both are now min-max scaled within the pool.
+- **Confidence-gated bandit.** With no feedback, LinUCB's bonus is just the length of each track's feature vector, which reshuffled results arbitrarily. It now stays off until the session has 10 ratings.
 
 ## Quickstart
 
@@ -46,17 +63,20 @@ cp .streamlit/secrets.toml.example .streamlit/secrets.toml
 # https://ollama.com
 ollama pull gemma3:4b
 
-# build the index from the 50-track seed catalog (one-time, ~30s)
+# build the index from the seed catalog (one-time, ~30s)
 python scripts/build_index.py
 
 streamlit run app.py
+
+# tests
+pip install -r requirements-dev.txt && python -m pytest -q
 ```
 
 The app boots even if Ollama / Spotify / Last.fm aren't configured — the LLM blurb falls back to a tag list, and tracks render without album art.
 
 ## Growing the catalog
 
-The seed catalog (`data/seed_catalog.json`) ships with 50 hand-curated tracks across continents, eras, and scenes. To expand:
+The seed catalog (`data/seed_catalog.json`) ships with 106 hand-curated tracks across continents, eras, and scenes. To expand:
 
 ```bash
 python scripts/ingest_musicbrainz.py --per-artist 5

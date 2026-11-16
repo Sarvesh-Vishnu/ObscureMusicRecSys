@@ -53,5 +53,16 @@ def explain(seed: Track, pick: Track, similarity: float, obscurity: float,
 
 
 def _fallback(pick: Track) -> str:
-    tags = ", ".join(pick.tags[:5]) if pick.tags else "no tags available"
-    return f"({tags})"
+    # Tags already render under every card; repeating them as a "blurb" is noise.
+    return ""
+
+
+def available(timeout: float = 1.0) -> bool:
+    """True if the configured Ollama host answers. Used to default the toggle."""
+    import urllib.request
+    try:
+        with urllib.request.urlopen(f"{config.ollama().host}/api/tags",
+                                    timeout=timeout):
+            return True
+    except Exception:
+        return False

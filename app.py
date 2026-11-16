@@ -45,6 +45,11 @@ def _load_tracks() -> list[cat.Track]:
     return _catalog().all_tracks()
 
 
+@st.cache_data(ttl=60, show_spinner=False)
+def _ollama_up() -> bool:
+    return narrative.available()
+
+
 @st.cache_resource(show_spinner=False)
 def _feedback_store() -> fb.FeedbackStore:
     return fb.FeedbackStore()
@@ -177,7 +182,8 @@ def _render_sidebar(catalog: cat.Catalog, n_tracks: int) -> dict:
         k = st.slider("Picks", 3, 20, 8)
         obscurity_weight = st.slider(
             "Obscurity ↔ similarity", 0.0, 1.0, 0.4, 0.05,
-            help="0 = closest semantic match. 1 = most obscure. 0.4 = sweet spot.",
+            help="Reorders only the closest matches. 0 = best match first, "
+                 "1 = most obscure of the close matches first.",
         )
 
         ui.section_label("Feedback loop")
@@ -197,9 +203,11 @@ def _render_sidebar(catalog: cat.Catalog, n_tracks: int) -> dict:
             help="Filter to OTHER languages than the seed. Find sonic neighbors "
                  "you literally can't search for in your own language.",
         )
+        ollama_up = _ollama_up()
         narrative_on = st.toggle(
-            "LLM blurb per pick", value=True,
-            help=f"Uses Ollama ({config.ollama().model}) locally.",
+            "LLM blurb per pick", value=ollama_up, disabled=not ollama_up,
+            help=(f"Uses Ollama ({config.ollama().model}) locally."
+                  if ollama_up else "Ollama isn't running, so blurbs are off."),
         )
         preview_on = st.toggle(
             "Embedded YouTube preview", value=True,
@@ -225,6 +233,18 @@ def _render_sidebar(catalog: cat.Catalog, n_tracks: int) -> dict:
         st.markdown(
             f'<div style="font-size:0.85rem; color:var(--text-dim);">'
             f'<b style="color:var(--accent)">{n_events}</b> feedback events</div>',
+            unsafe_allow_html=True,
+        )
+        ramp = recommender.bandit_ramp(n_events)
+        if ramp == 0:
+            status = (f"Re-ranker learning: active after "
+                      f"{recommender.BANDIT_MIN_EVENTS - n_events} more ratings")
+        elif ramp < 1:
+            status = f"Re-ranker active at {ramp:.0%} strength"
+        else:
+            status = "Re-ranker fully active"
+        st.markdown(
+            f'<div style="font-size:0.8rem; color:var(--text-faint);">{status}</div>',
             unsafe_allow_html=True,
         )
         if n_events > 0 and st.checkbox("Show learned weights", value=False):
@@ -341,7 +361,7 @@ def main() -> None:
     ui.render_hero(
         catalog_size=len(tracks),
         n_events=settings["n_events"],
-        ollama_on=True,  # presence-tested at request time, fast enough
+        ollama_on=_ollama_up(),
         spotify_on=config.spotify().enabled,
     )
 

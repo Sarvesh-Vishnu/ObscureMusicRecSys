@@ -111,11 +111,13 @@ class LinUCBReranker:
         self.alpha = alpha
         self.A = ridge * np.eye(d, dtype="float64")
         self.b = np.zeros(d, dtype="float64")
+        self.n_events = 0  # ratings learned from; gates the re-ranker
 
     def update(self, features: np.ndarray, reward: float) -> None:
         x = features.astype("float64")
         self.A += np.outer(x, x)
         self.b += reward * x
+        self.n_events += 1
 
     def update_batch(self, events: Iterable[FeedbackEvent]) -> int:
         n = 0
