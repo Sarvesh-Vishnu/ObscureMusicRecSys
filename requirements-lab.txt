@@ -1,0 +1,5 @@
+# offline benchmark (obscure/lab, scripts/fetch_listenbrainz.py, scripts/run_eval.py)
+-r requirements.txt
+duckdb>=1.1,<1.4
+implicit>=0.7,<0.8
+scipy>=1.11

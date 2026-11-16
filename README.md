@@ -45,6 +45,27 @@ Three fixes keep the default results on-topic (`obscure/recommender.py`, tested 
 - **Common scale.** Raw cosine similarity spans ~0.15 across the top 80 candidates while obscurity spans ~0.5, so an unscaled blend let obscurity outweigh relevance about 2:1. Both are now min-max scaled within the pool.
 - **Confidence-gated bandit.** With no feedback, LinUCB's bonus is just the length of each track's feature vector, which reshuffled results arbitrarily. It now stays off until the session has 10 ratings.
 
+## Offline discovery benchmark
+
+Can a model predict the recordings people go on to **discover**? Six recommenders, one leakage-free temporal split over 16 days of [ListenBrainz](https://listenbrainz.org) listens (CC0): 33,496 listeners, 219,859 recordings, 10,000 evaluated listeners, 315,152 discoveries. Protocol in [docs/PROTOCOL.md](docs/PROTOCOL.md), full table with CIs in [results/phase1.md](results/phase1.md).
+
+| Model | Recall@20 | Tail recall@20 | Novelty (bits) | Coverage |
+|---|---|---|---|---|
+| RandomTail (v1's idea) | 0.02% | 0.02% | 11.0 | — |
+| Popularity | 1.02% | 0.00% | 4.8 | 0.0% |
+| ItemKNN | 5.34% | **2.22%** | 8.5 | 22.5% |
+| EASE (top 15k items) | **5.52%** | 0.00% | 7.0 | 5.8% |
+| ALS | 5.15% | 0.13% | 6.7 | 5.5% |
+| BPR | 3.70% | 1.34% | 9.0 | 28.7% |
+
+ItemKNN, EASE and ALS are close on overall recall, but they differ roughly 17× on long-tail recall. Overall accuracy alone would pick the wrong model for a discovery product. Hyperparameters are untuned defaults for now.
+
+```bash
+pip install -r requirements-lab.txt
+python scripts/fetch_listenbrainz.py      # ~4 GB download, ~1.5 GB kept
+python scripts/run_eval.py --rebuild      # ~20 min on an 8 GB laptop
+```
+
 ## Quickstart
 
 ```bash

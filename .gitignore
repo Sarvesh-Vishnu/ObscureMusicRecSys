@@ -12,3 +12,7 @@ data/*.db
 data/catalog.ids.json
 .DS_Store
 .ipynb_checkpoints/
+data/raw/
+data/listens/
+data/eval/
+*.log
