@@ -31,7 +31,18 @@ PAUSE = 3.2                                   # seconds between requests
 HEADERS = {"User-Agent": "obscure-web-build/1.0"}
 
 
+# MusicBrainz uses typographic punctuation ("Don’t", "a‐ha"); Apple mostly doesn't
+TYPOGRAPHIC = str.maketrans({"‘": "'", "’": "'", "‛": "'", "′": "'", "“": '"', "”": '"',
+                             "‐": "-", "‑": "-", "‒": "-", "–": "-", "—": "-", "―": "-", "−": "-",
+                             "…": "...", "\u00a0": " "})
+
+
+def plain(s: str) -> str:
+    return s.translate(TYPOGRAPHIC)
+
+
 def norm(s: str) -> str:
+    s = re.sub(r"(\w)'(\w)", r"\1\2", plain(s))          # don't -> dont, on both sides
     s = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode()
     s = s.lower().replace("&", " and ")
     s = re.sub(r"[^a-z0-9]+", " ", s)
@@ -82,7 +93,7 @@ def match(track: dict, results: list[dict]) -> dict | None:
 
 
 def lookup(track: dict) -> list[dict]:
-    q = urllib.parse.urlencode({"term": f"{lead_artist(track['artist'])} {core_title(track['title'])}",
+    q = urllib.parse.urlencode({"term": f"{lead_artist(plain(track['artist']))} {core_title(plain(track['title']))}",
                                 "media": "music", "entity": "song", "limit": 25, "country": "US"})
     for attempt in range(5):
         try:
@@ -110,8 +121,14 @@ def main() -> int:
             need.update(s["to"] for s in steps)
     cache = json.loads(CACHE.read_text()) if CACHE.exists() else {}
     # re-check approximate matches (the rules may have tightened since they were cached)
-    todo = [i for i in sorted(need) if tracks[str(i)]["mbid"] not in cache
-            or (cache[tracks[str(i)]["mbid"]] or {}).get("exact") is False]
+    def stale(t: dict) -> bool:
+        if t["mbid"] not in cache:
+            return True
+        hit = cache[t["mbid"]]
+        if hit is None:      # misses with typographic punctuation predate plain()
+            return plain(t["artist"] + t["title"]) != t["artist"] + t["title"]
+        return hit.get("exact") is False
+    todo = [i for i in sorted(need) if stale(tracks[str(i)])]
     if "--merge-only" in sys.argv:
         todo = []
     print(f"{len(need)} playable tracks, {len(todo)} to look up (~{len(todo) * PAUSE / 60:.0f} min)", flush=True)

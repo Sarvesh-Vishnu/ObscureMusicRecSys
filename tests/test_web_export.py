@@ -41,3 +41,9 @@ def test_requires_the_same_lead_artist():
 
 def test_skips_results_without_a_preview():
     assert F.match({"title": "Creep", "artist": "Radiohead"}, [{**r("Radiohead", "Creep"), "previewUrl": None}]) is None
+
+
+def test_typographic_punctuation_matches_plain():
+    assert F.match({"title": "Take On Me", "artist": "a‐ha"}, [r("a-ha", "Take On Me")])["exact"]
+    assert F.match({"title": "Don’t Stop Me Now", "artist": "Queen"}, [r("Queen", "Don't Stop Me Now")])["exact"]
+    assert F.match({"title": "Heart‐Shaped Box", "artist": "Nirvana"}, [r("Nirvana", "Heart-Shaped Box")])["exact"]
