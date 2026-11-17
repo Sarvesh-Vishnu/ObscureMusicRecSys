@@ -17,3 +17,6 @@ data/listens/
 data/eval/
 *.log
 data/eval_val/
+
+# iTunes preview matches (rebuilt by scripts/fetch_previews.py)
+data/itunes_cache.json

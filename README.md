@@ -4,6 +4,32 @@ A semantic recommender for **long-tail music** — surfaces tracks you've probab
 
 The previous version was a thin wrapper around Spotify's `/recommendations` and `/audio-features` endpoints; both were **deprecated for new apps on 2024-11-27**, along with the 30-second `preview_url`. This version owns its own catalog, embeds it, retrieves with FAISS, and uses Spotify (if configured) only as a *display layer* for album art and links.
 
+## Web app: routes and the lab
+
+`web/` is a static site (Vite, React, TypeScript) with two views:
+
+- **Route.** Pick one of 133 seed songs and see a route of five steps to a song almost nobody plays,
+  drawn on a listeners axis so you can watch it leave the head. Each step shows how many training
+  plays made that move, whether someone made it again after the cutoff, how the sound changed
+  (AcousticBrainz tempo, key, danceability), and the other ways on. Two dials (smoothness λ, pull γ)
+  step through a precomputed grid; next to the route, the tuned ItemKNN's top five for contrast.
+  30-second previews come from Apple's iTunes Search API, matched by lead artist and title.
+- **Lab.** The benchmark below as five figures. Every number on the page is read from
+  `results/phase*.json`; "tied" and "no measurable cost" are worded from whether a paired 95%
+  interval spans zero.
+
+The browser does no modelling. Every route is computed offline by the same `find_route` the
+benchmark measured, on the phase-4 next-song graph. The app has no listener, so its pull is
+closeness to the seed (two hops of ItemKNN), not to a listening history, and its routes treat
+"Korn feat. Skrillex" as Korn (the benchmark keys artists by credit).
+
+```bash
+python scripts/export_web.py        # web/public/data/{routes,tracks,lab}.json (needs phase 2-4 caches)
+python scripts/fetch_previews.py    # iTunes previews, ~20 lookups/min, cached in data/itunes_cache.json
+cd web && npm install && npm run dev   # http://localhost:5192
+npm test && npm run build              # vitest checks the exported routes keep the benchmark's rules
+```
+
 ## Pipeline
 
 ```

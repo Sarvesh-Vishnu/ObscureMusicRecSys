@@ -1,0 +1,253 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import { featured, median, routeFor, routeHash, searchSeeds, stops as stopIds, summarise, type RoutesFile, type SeedRoutes, type Step, type Track, type Tracks } from "./data";
+import { fold, int, plural, reach, soundChange, spell, stepEvidence, testWindow, windowDays } from "./format";
+import { Icon } from "./icons";
+import { usePlayer } from "./player";
+import { RouteFigure } from "./RouteFigure";
+
+const SMOOTH = ["Off", "Some", "Strong"];
+const PULL = ["None", "Some", "Strong"];
+
+export function RouteView({ data, tracks, seed, lam, gamma }: {
+  data: RoutesFile; tracks: Tracks; seed: number | null; lam: number | null; gamma: number | null;
+}) {
+  const { meta, routes } = data;
+  const r = useMemo(() => routes.find((x) => x.seed === seed) ?? featured(routes, tracks, meta), [routes, seed, tracks, meta]);
+  const L = lam != null && meta.lams.includes(lam) ? lam : meta.default[0];
+  const G = gamma != null && meta.gammas.includes(gamma) ? gamma : meta.default[1];
+  const steps = routeFor(r, L, G);
+  const ids = stopIds(r, steps);
+  const stopTracks = ids.map((i) => tracks[i]);
+  const sum = summarise(r, steps, tracks);
+  const [selected, setSelected] = useState(1);
+  const player = usePlayer();
+  const seedT = tracks[r.seed];
+
+  useEffect(() => { setSelected(1); }, [r.seed]);
+  useEffect(() => { document.title = `${seedT.title} — Obscure`; }, [seedT.title]);
+
+  const go = (s: number, l: number, g: number) => { location.hash = routeHash(s, l, g, meta); };
+  const playable = ids.filter((i) => tracks[i].preview);
+  const routePlaying = player.queue.length > 1 && player.queue.every((q) => ids.includes(q));
+
+  const figLabel = `Route from ${seedT.title} by ${seedT.artist}: ` +
+    stopTracks.slice(1).map((t, i) => `${i + 1}, ${t.title} by ${t.artist}, ${int(t.listeners)} listeners`).join("; ");
+
+  return (
+    <main className="wrap">
+      <p className="lede">
+        <strong>A route from a song you know to one almost nobody plays.</strong> Five steps, and each step is a
+        move real ListenBrainz listeners made from one song to the next.
+      </p>
+
+      <div className="route-grid">
+        <header className="seed-head a-head">
+          <p className="label">From</p>
+          <h1>{seedT.title}</h1>
+          <p className="by">{seedT.artist}</p>
+          <p className="meta mono">{reach(seedT, meta)}</p>
+          <div className="actions">
+            <button className="btn primary" disabled={!playable.length}
+              onClick={() => (routePlaying ? player.toggle() : player.playQueue(ids, 0))}>
+              <Icon name={routePlaying && player.playing ? "pause" : "play"} />
+              {routePlaying && player.playing ? "Pause route" : `Play the route`}
+            </button>
+            <a className="btn" href="#pick" onClick={(e) => { e.preventDefault(); document.getElementById("seed-search")?.focus(); }}>
+              Start from another song
+            </a>
+          </div>
+        </header>
+
+        <div className="a-figure">
+          <figure className="figure">
+            <RouteFigure stops={stopTracks} meta={meta} selected={selected} onSelect={setSelected} label={figLabel} />
+          </figure>
+          <p className="figcaption">
+            {sum.endsInTail
+              ? <>Ends on <b>{int(sum.endListeners)} listeners</b>, {fold(sum.fold)}. </>
+              : <>Ends on <b>{int(sum.endListeners)} listeners</b>, still in the head: with this much pull the route stays near the seed. </>}
+            {plural(sum.tailStops, "stop")} of 5 in the long tail. {sum.heldOut} of 5 steps were made again by a listener
+            after the cutoff ({testWindow(meta)}), data no model saw.
+          </p>
+        </div>
+
+        <div className="a-dials dials">
+          <fieldset className="dial">
+            <legend>Smoothness <span className="mono">λ = {L}</span></legend>
+            <div className="seg">
+              {meta.lams.map((v, i) => (
+                <label key={v}><input type="radio" name="lam" checked={v === L} onChange={() => go(r.seed, v, G)} />{SMOOTH[i]}</label>
+              ))}
+            </div>
+            <p>Penalises a big change in sound between one song and the next.</p>
+          </fieldset>
+          <fieldset className="dial">
+            <legend>Pull <span className="mono">γ = {G}</span></legend>
+            <div className="seg">
+              {meta.gammas.map((v, i) => (
+                <label key={v}><input type="radio" name="gamma" checked={v === G} onChange={() => go(r.seed, L, v)} />{PULL[i]}</label>
+              ))}
+            </div>
+            <p>Keeps the route near songs that share listeners with the seed. Strong pull often never reaches the long tail.</p>
+          </fieldset>
+        </div>
+
+        <ol className="stops a-stops" aria-label="Stops on this route">
+          {ids.map((id, i) => (
+            <StopRow key={`${i}-${id}`} n={i} t={tracks[id]} step={i ? steps[i - 1] : null} prev={i ? tracks[ids[i - 1]] : null}
+              tracks={tracks} meta={data.meta} open={selected === i} onToggle={() => setSelected(selected === i ? -1 : i)}
+              playing={player.current === id && player.playing} onPlay={() => player.toggle(id)} gamma={G} />
+          ))}
+        </ol>
+
+        <Obvious r={r} tracks={tracks} steps={steps} />
+        <Picker routes={routes} tracks={tracks} current={r.seed} onPick={(s) => go(s, L, G)} />
+      </div>
+    </main>
+  );
+}
+
+function StopRow({ n, t, step, prev, tracks, meta, open, onToggle, playing, onPlay, gamma }: {
+  n: number; t: Track; step: Step | null; prev: Track | null; tracks: Tracks; meta: RoutesFile["meta"];
+  open: boolean; onToggle: () => void; playing: boolean; onPlay: () => void; gamma: number;
+}) {
+  const art = t.preview?.art;
+  const mb = `https://musicbrainz.org/recording/${t.mbid}`;
+  const id = `why-${n}`;
+  return (
+    <li className={`stop-row${open ? " selected" : ""}`}>
+      <div className="stop-main">
+        <span className="stop-n" aria-hidden="true">{n === 0 ? "◦" : n}</span>
+        {art ? <img className="art" src={art} alt="" width={44} height={44} loading="lazy" /> : <span className="art" />}
+        <button className="stop-title" onClick={onToggle} aria-expanded={open} aria-controls={id}>
+          <span className="t">{n === 0 ? <span className="sr-only">Seed: </span> : <span className="sr-only">Step {n}: </span>}{t.title}</span>
+          <span className="a">{t.artist}</span>
+        </button>
+        <span className="stop-reach mono">{int(t.listeners)}<span className="z">{t.tail ? "long tail" : "head"}</span></span>
+        {t.preview
+          ? <button className="icon-btn" onClick={onPlay} aria-pressed={playing} aria-label={`${playing ? "Pause" : "Play"} preview of ${t.title}`}><Icon name={playing ? "pause" : "play"} /></button>
+          : <a className="icon-btn ext" href={mb} target="_blank" rel="noreferrer" aria-label={`${t.title} on MusicBrainz (no preview found)`} title="No preview found. Open on MusicBrainz">MB</a>}
+      </div>
+      {open && (
+        <div className="why" id={id}>
+          <dl>
+            {step && prev && (<>
+              <dt>Why here</dt>
+              <dd>{stepEvidence(step, prev)} {step.rank === 1 ? "The single most common next song." : `Number ${step.rank} of the ${meta.fanout} likeliest next songs.`}</dd>
+              <dt>After the cutoff</dt>
+              <dd>{step.heldOut ? <>A listener made this same step between {testWindow(meta)}, after the model was frozen.</> : <>Not seen between {testWindow(meta)}. That window is only {spell(windowDays(meta))} days.</>}</dd>
+              <dt>Sound</dt>
+              <dd>
+                <b>{soundChange(step)}</b>
+                {prev.audio && t.audio ? <AudioCompare a={prev} b={t} /> : <span> No AcousticBrainz analysis for one of the two songs, so the step counts as typical.</span>}
+              </dd>
+            </>)}
+            {!step && t.audio && (<>
+              <dt>Sound</dt>
+              <dd><AudioCompare a={null} b={t} /></dd>
+            </>)}
+            <dt>Reach</dt>
+            <dd>{reach(t, meta)}, {t.tail ? "in the long tail" : "in the head"}.</dd>
+            {step && step.alts.length > 0 && (<>
+              <dt>Other ways on</dt>
+              <dd>
+                <ul className="alts">
+                  {step.alts.map((a) => (
+                    <li key={a.id}>{tracks[a.id].title} <span className="muted">· {tracks[a.id].artist} · {plural(a.count, "play")}</span></li>
+                  ))}
+                </ul>
+              </dd>
+            </>)}
+            <dt>Links</dt>
+            <dd className="ext">
+              <a href={mb} target="_blank" rel="noreferrer">MusicBrainz ↗</a>
+              {t.preview && <>{"  ·  "}<a href={t.preview.link} target="_blank" rel="noreferrer">Apple Music ↗</a></>}
+              {t.preview && !t.preview.exact && <span>{"  ·  "}preview is “{t.preview.as}”</span>}
+            </dd>
+          </dl>
+          {step && (
+            <p className="terms mono">
+              score = log p {Math.log(step.p).toFixed(2)}{gamma ? ` + γ·closeness ${gamma}×${step.rel.toFixed(2)}` : ""}{" "}
+              − λ·sound {step.audio.toFixed(2)}
+            </p>
+          )}
+        </div>
+      )}
+    </li>
+  );
+}
+
+function AudioCompare({ a, b }: { a: Track | null; b: Track }) {
+  const rows: [string, (t: Track) => string][] = [
+    ["Tempo", (t) => `${t.audio!.bpm} bpm`],
+    ["Key", (t) => t.audio!.key],
+    ["Danceability", (t) => t.audio!.dance.toFixed(2)],
+    ["Onsets / s", (t) => t.audio!.onsets.toFixed(1)],
+  ];
+  return (
+    <table className="cmp">
+      <tbody>
+        {rows.map(([k, f]) => (
+          <tr key={k}><th scope="row">{k}</th>{a && <td>{f(a)}</td>}{a && <td aria-hidden="true">→</td>}<td>{f(b)}</td></tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function Obvious({ r, tracks, steps }: { r: SeedRoutes; tracks: Tracks; steps: Step[] }) {
+  const ob = r.obvious.map((i) => tracks[i]);
+  const mOb = median(ob.map((t) => t.listeners));
+  const mRoute = median(steps.map((s) => tracks[s.to].listeners));
+  const sameArtist = ob.filter((t) => t.artist === tracks[r.seed].artist).length;
+  return (
+    <section className="side-block a-obvious" aria-labelledby="obvious-h">
+      <h2 id="obvious-h">What a standard recommender returns</h2>
+      <p>
+        The benchmark’s tuned ItemKNN, for a listener who has played only this song. Median {int(mOb)} listeners
+        against the route’s {int(mRoute)}{sameArtist ? `; ${sameArtist} of 5 by the same artist` : ""}.
+      </p>
+      <ul className="mini">
+        {ob.map((t, i) => (
+          <li key={i}><span className="who">{t.title} <span>· {t.artist}</span></span><span className="mono soft">{int(t.listeners)}</span></li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function Picker({ routes, tracks, current, onPick }: { routes: SeedRoutes[]; tracks: Tracks; current: number; onPick: (s: number) => void }) {
+  const [q, setQ] = useState("");
+  const list = useMemo(() => searchSeeds(routes, tracks, q), [routes, tracks, q]);
+  const groups: [string, SeedRoutes[]][] = q
+    ? [["Matches", list]]
+    : [["From India", list.filter((x) => x.group === "india")], ["Most played on ListenBrainz", list.filter((x) => x.group === "top")]];
+  const listRef = useRef<HTMLDivElement>(null);
+  return (
+    <section className="side-block a-picker" id="pick" aria-labelledby="pick-h">
+      <h2 id="pick-h">Start from another song</h2>
+      <p>{routes.length} seeds: the most played recordings with one per artist, and a few from India.</p>
+      <label className="sr-only" htmlFor="seed-search">Search seeds by song or artist</label>
+      <input id="seed-search" className="search" type="search" placeholder="Search song or artist" value={q}
+        onChange={(e) => setQ(e.target.value)} autoComplete="off" />
+      <div className="seeds" ref={listRef}>
+        {groups.map(([name, items]) => items.length > 0 && (
+          <div key={name}>
+            <h3>{name}</h3>
+            {name === "From India" && <p className="note">ListenBrainz has few listeners in India, so these routes rest on fewer plays.</p>}
+            {items.map((x) => {
+              const t = tracks[x.seed];
+              return (
+                <button key={x.seed} aria-current={x.seed === current} onClick={() => { onPick(x.seed); window.scrollTo({ top: 0 }); }}>
+                  <span className="who">{t.title} <span>· {t.artist}</span></span>
+                  <span className="mono muted">{int(t.listeners)}</span>
+                </button>
+              );
+            })}
+          </div>
+        ))}
+        {!list.length && <p className="note" style={{ marginTop: 12 }}>No seed matches “{q}”. Seeds are limited to songs with a full route at every setting.</p>}
+      </div>
+    </section>
+  );
+}
