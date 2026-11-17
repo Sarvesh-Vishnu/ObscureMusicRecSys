@@ -88,6 +88,29 @@ Collaborative models can't score a recording nobody has played. Phase 3 ranks 32
 - **Low-level audio is real but faint.** 13 summary numbers (tempo, key, loudness, danceability …) predict 1.3% of the variance in ALS factors. That gives 5× random recall, and nothing on top of the artist (−0.09 pp, CI [−0.21, +0.03]). The features do describe sound: an item's nearest audio neighbour shares its artist 60× more often than chance. They encode how a recording sounds, not who will love it.
 - **New artists are the gap.** Every artist-based model scores 0% on them by construction. Only audio reaches them at all. A discovery product has to give new artists slots on purpose; ranking won't surface them.
 
+### Sessions and routes
+
+Listens have timestamps, so histories are sequences. Back-to-back plays under 30 minutes apart give 20.8M training transitions. Full tables: [results/phase4.md](results/phase4.md).
+
+**Next song** (100,000 held-out transitions): a first-order transition model with an ItemKNN back-off finds the true next song in its top 20 **50.7%** of the time (MRR 28.4%). Item-to-item ItemKNN gets 46.4% (MRR 14.2%) and popularity 0.3%. The two models tie on transitions to songs new to the listener (32.3% vs 32.1%).
+
+**Routes.** From each of a listener's 4 favourite songs, beam search takes 5 steps through the next-song graph. A route never repeats an artist, never plays anything the listener has heard, and has to end in the long tail. Two knobs: γ pulls the route toward the listener's taste, and λ penalises audible jumps.
+
+| 20 recordings per listener (10,000 listeners) | Recall@20 | Tail share | Realism | Audio step |
+|---|---|---|---|---|
+| Top-20 ItemKNN | 6.87% | 23% | 15.1% | 4.08 |
+| Top-20 PopPenalty β=0.5 | 6.09% | 60% | 7.0% | 4.17 |
+| Route: most probable | 0.52% | 59% | 16.6% | 4.02 |
+| Route: smooth (λ=1) | 0.47% | 59% | 16.4% | **3.36** |
+| Route: personal γ=3 + smooth | 1.28% | 53% | 18.5% | 3.36 |
+| Route: personal γ=10 + smooth | 3.15% | 34% | **21.2%** | 3.45 |
+
+*Realism* is the share of steps that some real listener made in the held-out window. For a top-20 list, the steps are its consecutive items played in order.
+
+- **A route goes as deep as a debiased list, by real steps.** PopPenalty reaches 60% long-tail picks, but only 7% of its consecutive pairs are moves anyone made. Routes reach 59% with 16–21% real steps, and the audio penalty makes each step 16% smoother, with realism and recall inside the unpenalised route's confidence intervals.
+- **Leaving the neighbourhood costs offline recall, and the dial shows how much.** A route is built to take the listener somewhere they weren't headed, so it rarely contains what they were about to play anyway (0.5% vs 6.1%). Turning up personal pull (γ) buys recall back at the price of depth. Offline recall can only score the first goal. Whether people *enjoy* the far end of a route needs an online test.
+- **One song per artist costs a third of ItemKNN's hits** (6.87% → 4.59%). Many "discoveries" are another track by an artist the listener already plays.
+
 ```bash
 pip install -r requirements-lab.txt
 python scripts/fetch_listenbrainz.py      # ~4 GB download, ~1.5 GB kept
@@ -95,6 +118,7 @@ python scripts/fetch_canonical.py         # 2.4 GB download, 60 MB kept
 python scripts/run_phase2.py --stage all  # several hours on an 8 GB laptop
 python scripts/fetch_acousticbrainz.py    # 3.3 GB download, 72 MB kept
 python scripts/run_phase3.py --stage all  # ~25 min
+python scripts/run_phase4.py --stage all  # ~1.5 h
 ```
 
 ## Quickstart

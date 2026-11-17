@@ -1,0 +1,51 @@
+{
+  "validation": {
+    "gap_minutes": 30,
+    "train_transitions": 12668639,
+    "train_pairs": 6131455,
+    "items_with_out_edges": 142503,
+    "test_transitions": 1673656,
+    "test_by_warm_users": 1614283,
+    "test_new_to_user": 645099
+  },
+  "transitions_sampled": 50000,
+  "selection": "hit@20 on transitions to recordings new to the listener",
+  "trials": [
+    {
+      "gamma": 0.0,
+      "hit": 0.52564,
+      "mrr": 0.29131363180100917,
+      "hit_new": 0.3230219807856748,
+      "hit_tail": 0.3793671720500989
+    },
+    {
+      "gamma": 0.25,
+      "hit": 0.51422,
+      "mrr": 0.28719496649213133,
+      "hit_new": 0.3137669131331422,
+      "hit_tail": 0.3843111404087014
+    },
+    {
+      "gamma": 0.5,
+      "hit": 0.49364,
+      "mrr": 0.2742702414447069,
+      "hit_new": 0.3057693274986168,
+      "hit_tail": 0.38670072511535925
+    },
+    {
+      "gamma": 0.75,
+      "hit": 0.446,
+      "mrr": 0.2504468639717251,
+      "hit_new": 0.29596096775816105,
+      "hit_tail": 0.3871951219512195
+    },
+    {
+      "gamma": 1.0,
+      "hit": 0.28558,
+      "mrr": 0.17549769384346903,
+      "hit_new": 0.28640410442130676,
+      "hit_tail": 0.38801911667765326
+    }
+  ],
+  "best_gamma": 0.0
+}

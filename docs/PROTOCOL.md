@@ -69,6 +69,26 @@ Using test-window activity for *membership* mirrors a catalog where new recordin
 
 **Content → factors.** The strongest content models regress the tuned ALS item factors (512 dimensions) from content, then score a cold recording as user factor · predicted factor ([van den Oord et al., NeurIPS 2013](https://papers.nips.cc/paper/2013/hash/b3ba8f1bee1238a2f37603d90b58898d-Abstract.html)). Inputs are the audio vector, the artist's mean warm factor, or both. The regressor is a two-layer MLP trained on warm recordings that have audio, with early stopping on 5% of them held out. When training on warm recordings, each recording's artist mean **leaves that recording out**, as it would be for a recording the model has never seen. Width and weight decay are picked on the validation split's cold set.
 
+## Sessions and routes (phase 4)
+
+**Transitions.** Two consecutive listens by the same person, at most 30 minutes apart and both in the warm catalog, form a transition a → b. Repeats are dropped, and so are exact duplicate listens. A listen outside the catalog breaks the chain: a, X, b gives no a → b. Training transitions come only from listens played and submitted before the split. Test transitions come from listens played and submitted inside the test window, the same rule as everything else. `tests/test_routes.py` pins the gap, catalog and split rules.
+
+**Next song.** Given the current recording, a model ranks every other recording, and a hit means the true next one is in the top 20. Ties count as a uniformly random order. The transition model's popularity discount γ is selected on the validation split, by hit@20 on transitions to recordings new to the listener.
+
+**Routes.** Each evaluated listener's 4 most-played recordings, one per artist, are the seeds. From each seed the search takes 5 steps along the next-song graph (the 50 best next songs per recording), for 20 new recordings in total. That is the same budget as a top-20 list. A route:
+- never revisits a recording;
+- never reuses an artist within itself;
+- never lands on anything the listener has heard;
+- must end in the long tail.
+
+Beam search (width 10) maximises Σ log p(step), with two optional terms: a personal pull γ·rel_u (the listener's ItemKNN score, scaled 0..1) and an audio penalty λ·(audio distance ÷ median edge distance).
+
+**Route metrics.**
+- **Realism:** the share of steps that some listener actually made in the held-out window.
+- **Audio step:** the mean z-scored audio distance per step, over steps with audio on both ends.
+
+For top-20 lists the "steps" are consecutive items, as if the list were played in order. Recall is measured against the listener's test-window discoveries, exactly as in phases 1–2. That is a strict test for a route, which is built to leave the listener's current neighbourhood.
+
 ## Known limitations
 
 - **Audio covers 39% of cold plays.** 509,770 of the 832,136 test-window plays of cold recordings by warm users fall on recordings with no AcousticBrainz features, mostly post-2022 releases. Phase 3 results are conditional on having audio.
