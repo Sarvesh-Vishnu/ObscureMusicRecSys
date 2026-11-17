@@ -1,8 +1,21 @@
-# Obscure Music RecSys
+# Obscure: a recommender that takes you somewhere new
 
-A semantic recommender for **long-tail music** — surfaces tracks you've probably never heard, but that are sonically and contextually adjacent to something you do love.
+**[Live app](https://sarvesh-vishnu.github.io/ObscureMusicRecSys/)** · **[The Lab](https://sarvesh-vishnu.github.io/ObscureMusicRecSys/#/lab)** · [Protocol](docs/PROTOCOL.md) · [Results](results/)
 
-The previous version was a thin wrapper around Spotify's `/recommendations` and `/audio-features` endpoints; both were **deprecated for new apps on 2024-11-27**, along with the 30-second `preview_url`. This version owns its own catalog, embeds it, retrieves with FAISS, and uses Spotify (if configured) only as a *display layer* for album art and links.
+Most recommenders are scored on predicting what you were going to play anyway, so they keep you where you already are. This project asks whether a recommender can take a listener somewhere new, by steps real people take, and how to measure that honestly.
+
+The answer is a **route**: five steps from a song you know to one almost nobody plays, each step a move ListenBrainz listeners really made. Behind it is a benchmark on one leakage-free split of public listening data (16 days, 33,575 listeners, 219,876 recordings, all CC0): a ladder of recommenders, re-rankers, cold start from audio, a next-song model, and off-policy evaluation with contextual bandits. Every model is tuned on a separate validation split and scored once; every comparison carries a bootstrap interval or a paired difference.
+
+## What it found
+
+1. **Similar recall, very different reach.** ItemKNN and ALS are statistically tied on recall@20 (6.87% and 6.71%), but ItemKNN finds 2.1× as many long-tail discoveries. EASE finds none.
+2. **Reach costs a little recall.** A mild popularity penalty trades 0.22 points of recall for 1.13 points of long-tail recall (+44%). Calibration is free; diversity (MMR) is not the same as discovery.
+3. **Sound alone barely finds anything.** For recordings too rare for collaborative filtering, 13 audio descriptors reach 0.10% recall (about 5× random); the artist's other songs reach 2.62%. Sound describes a song, not who will like it.
+4. **What people play next is its own signal.** Back-to-back listens find the true next song 50.7% of the time in the top 20, against 46.4% for co-listening similarity, and rank it twice as high.
+5. **Routes go as deep as a popularity penalty, on steps people take.** 59% of route stops are in the long tail (a penalised list: 60%), and 2.4× as many of their steps were made again by real listeners. The cost is recall, because a route leaves the neighbourhood on purpose; a pull setting buys it back.
+6. **The policies worth trying are the hardest to judge from logs.** From a popularity-leaning system's logs, a "long tail first" policy keeps an effective sample of 43 in 10,000 rounds, too few for even doubly robust estimation to separate it from the base ranker. Online, a LinUCB bandit lifts hits 13% over the base ranker, and exploring adds nothing on this data.
+
+What offline data cannot answer is whether people enjoy where a route ends. That needs an online test.
 
 ## Web app: routes and the lab
 
@@ -30,48 +43,7 @@ cd web && npm install && npm run dev   # http://localhost:5192
 npm test && npm run build              # vitest checks the exported routes keep the benchmark's rules
 ```
 
-## Pipeline
-
-```
-free-text seed ──▶ sentence-transformer embedding (all-MiniLM-L6-v2)
-                          │
-                          ▼
-                   FAISS k-NN over catalog
-                          │
-                          ▼
-      relevance pool (top 3k by similarity)
-                          │
-                          ▼
-   blend similarity × obscurity, both scaled within the pool
-                          │
-                          ▼
-   LinUCB re-rank (off until 10 ratings, full strength at 30)
-                          │
-                          ▼
-              one track per artist
-                          │
-                          ▼
-   Ollama gemma3:4b narrative ("why this is a kindred pick")
-                          │
-                          ▼
-      optional Spotify link/art (display only)
-```
-
-Two seed modes:
-- **Seed by track** — pick anything in the catalog; its tags + description become the query.
-- **Seed by free text** — type *"hazy reverb-soaked 1970s Turkish psych with fuzz guitar"* and the embedder handles it.
-
-A single slider trades **similarity ↔ obscurity** (default 0.4). It only reorders the closest matches, so a higher setting surfaces the most obscure *relevant* tracks rather than obscure unrelated ones.
-
-## Ranking guards
-
-Three fixes keep the default results on-topic (`obscure/recommender.py`, tested in `tests/test_ranking.py`):
-
-- **Relevance pool.** Obscurity can reorder relevant tracks but can't pull in irrelevant ones.
-- **Common scale.** Raw cosine similarity spans ~0.15 across the top 80 candidates while obscurity spans ~0.5, so an unscaled blend let obscurity outweigh relevance about 2:1. Both are now min-max scaled within the pool.
-- **Confidence-gated bandit.** With no feedback, LinUCB's bonus is just the length of each track's feature vector, which reshuffled results arbitrarily. It now stays off until the session has 10 ratings.
-
-## Offline discovery benchmark
+## The benchmark
 
 Can a model predict the recordings people go on to **discover**? One leakage-free temporal split over 16 days of [ListenBrainz](https://listenbrainz.org) listens (CC0), merged to MusicBrainz canonical recordings: 33,575 listeners, 219,876 recordings, 10,000 evaluated listeners, 325,376 discoveries (46% long-tail). Protocol in [docs/PROTOCOL.md](docs/PROTOCOL.md).
 
@@ -152,18 +124,93 @@ ListenBrainz has no logs of a recommender showing songs, so phase 6 uses the sup
 - **Exploring in the log helps, at a price paid up front.** Showing a random candidate 50% of the time instead of 10% costs 22% of the logged system's hits. It cuts DR's error on "long tail first" from 2.41 to 1.83 points, still more than the 1.77-point gap to ItemKNN. *(A follow-up added after the first result.)*
 - **Learning from each hit beats the base ranker; exploring adds nothing here.** Linear bandits on six features (ItemKNN and ALS scores, popularity, long-tail and known-artist flags) climb from ItemKNN's fixed 6.67% to 7.56% (LinUCB, last fifth of 50,000 rounds). That's level with the same model fitted on all the feedback at once (7.50%). A greedy learner that never explores gets 7.55%, and tuning picked the smallest exploration in every family. This is consistent with Bastani, Bayati & Khosravi (2021) on greedy bandits with diverse contexts.
 
+## Reproduce
+
+Everything runs on an 8 GB laptop. Downloads are cached under `data/` (gitignored).
+
 ```bash
 pip install -r requirements-lab.txt
 python scripts/fetch_listenbrainz.py      # ~4 GB download, ~1.5 GB kept
 python scripts/fetch_canonical.py         # 2.4 GB download, 60 MB kept
-python scripts/run_phase2.py --stage all  # several hours on an 8 GB laptop
+python scripts/run_eval.py                # phase 1: untuned baselines, ~20 min
+python scripts/run_phase2.py --stage all  # tuning + re-rankers, several hours
 python scripts/fetch_acousticbrainz.py    # 3.3 GB download, 72 MB kept
-python scripts/run_phase3.py --stage all  # ~25 min
-python scripts/run_phase4.py --stage all  # ~1.5 h
-python scripts/run_phase6.py --stage all  # ~15 min (refits ALS)
+python scripts/run_phase3.py --stage all  # cold start, ~25 min
+python scripts/run_phase4.py --stage all  # sessions and routes, ~1.5 h
+python scripts/run_phase6.py --stage all  # off-policy evaluation and bandits, ~15 min
+python -m pytest -q                       # 49 tests
 ```
 
-## Quickstart
+Then the web app: see [Web app](#web-app-routes-and-the-lab).
+
+## Repository layout
+
+```
+obscure/lab/        the benchmark: data and split, metrics, models, re-rankers,
+                    cold start, sequences, routes, bandits
+scripts/            fetchers, one runner per phase, web export, preview matcher
+results/            every table (phase*.md) and its numbers (phase*.json)
+docs/PROTOCOL.md    the evaluation protocol, written before each phase's results
+web/                the static app (Vite, React, TypeScript); design contract in web/design.md
+tests/              pytest for the lab; vitest for the app lives in web/src
+obscure/*.py, app.py   the earlier Streamlit version (see below)
+```
+
+## What's next
+
+- An online test of routes: whether listeners keep, skip or save where a route ends.
+- A sequential neural model (SASRec) against the transition baseline.
+- Lyrics and tags for recordings with no listeners and no audio analysis.
+- Lead-artist parsing for credits like "X reinterpreted by Y", which the app's routes can still repeat.
+
+## Earlier versions
+
+**v1 (2024)** asked Spotify's `/recommendations` for obscure songs by passing `target_popularity=random.randint(1, 50)`. Spotify deprecated that endpoint, `/audio-features` and the 30-second `preview_url` for new apps on 2024-11-27.
+
+**v2 (May 2026)** owned a small catalog: MusicBrainz and Last.fm tags embedded with a sentence transformer, FAISS retrieval, a similarity-obscurity blend, a LinUCB re-ranker and an Ollama-written blurb, in Streamlit. Its code is still here (`app.py`, `obscure/*.py`) and its notes follow. The benchmark above replaced it as the project's core, because a 353-track catalog with hand-entered listener counts could not be evaluated.
+
+### Pipeline
+
+```
+free-text seed ──▶ sentence-transformer embedding (all-MiniLM-L6-v2)
+                          │
+                          ▼
+                   FAISS k-NN over catalog
+                          │
+                          ▼
+      relevance pool (top 3k by similarity)
+                          │
+                          ▼
+   blend similarity × obscurity, both scaled within the pool
+                          │
+                          ▼
+   LinUCB re-rank (off until 10 ratings, full strength at 30)
+                          │
+                          ▼
+              one track per artist
+                          │
+                          ▼
+   Ollama gemma3:4b narrative ("why this is a kindred pick")
+                          │
+                          ▼
+      optional Spotify link/art (display only)
+```
+
+Two seed modes:
+- **Seed by track** — pick anything in the catalog; its tags + description become the query.
+- **Seed by free text** — type *"hazy reverb-soaked 1970s Turkish psych with fuzz guitar"* and the embedder handles it.
+
+A single slider trades **similarity ↔ obscurity** (default 0.4). It only reorders the closest matches, so a higher setting surfaces the most obscure *relevant* tracks rather than obscure unrelated ones.
+
+### Ranking guards
+
+Three fixes keep the default results on-topic (`obscure/recommender.py`, tested in `tests/test_ranking.py`):
+
+- **Relevance pool.** Obscurity can reorder relevant tracks but can't pull in irrelevant ones.
+- **Common scale.** Raw cosine similarity spans ~0.15 across the top 80 candidates while obscurity spans ~0.5, so an unscaled blend let obscurity outweigh relevance about 2:1. Both are now min-max scaled within the pool.
+- **Confidence-gated bandit.** With no feedback, LinUCB's bonus is just the length of each track's feature vector, which reshuffled results arbitrarily. It now stays off until the session has 10 ratings.
+
+### Quickstart
 
 ```bash
 git clone https://github.com/Sarvesh-Vishnu/ObscureMusicRecSys.git
@@ -192,7 +239,7 @@ pip install -r requirements-dev.txt && python -m pytest -q
 
 The app boots even if Ollama / Spotify / Last.fm aren't configured — the LLM blurb falls back to a tag list, and tracks render without album art.
 
-## Growing the catalog
+### Growing the catalog
 
 The seed catalog (`data/seed_catalog.json`) ships with 106 hand-curated tracks across continents, eras, and scenes. To expand:
 
@@ -203,37 +250,10 @@ python scripts/build_index.py
 
 This walks every seed artist, pulls up to N recordings each from MusicBrainz (CC0, no key needed), and — if `LASTFM_API_KEY` is configured — enriches each row with Last.fm tags and listener counts. MusicBrainz is rate-limited to 1 req/s, so 50 artists × 5 tracks takes a few minutes.
 
-## Project layout
-
-```
-obscure/
-  config.py            secrets + paths (st.secrets / env vars, never hard-coded)
-  catalog.py           Track dataclass, parquet I/O, obscurity scoring
-  embeddings.py        sentence-transformers + FAISS index build/query
-  recommender.py       k-NN + obscurity-weighted blended ranking
-  narrative.py         Ollama gemma3:4b explainer (best-effort, degrades gracefully)
-  spotify_display.py   optional Spotify lookup for art + open-in-Spotify links
-scripts/
-  ingest_musicbrainz.py
-  build_index.py
-data/
-  seed_catalog.json    50-track starter catalog
-  catalog.parquet      grown catalog (gitignored)
-  catalog.faiss        FAISS index (gitignored)
-app.py
-```
-
-## Why a custom catalog?
+### Why a custom catalog?
 
 Spotify's `/recommendations` is a black box and was the engine of the obscure-ness in v1 (`target_popularity=random.randint(1,50)`). With it deprecated and the underlying audio features endpoint gone too, building on Spotify is no longer viable. MusicBrainz + Last.fm cover the same ground for metadata, are open-licensed, and let us define what "obscure" means rather than asking a closed API for it.
 
-## Roadmap
-
-- [ ] Larger seed (target: 5k tracks via batched MusicBrainz crawl)
-- [ ] Lyrics embeddings (Genius / MusixMatch) joined alongside tag embeddings
-- [ ] User-feedback loop — thumbs-up/down adjusts the obscurity slider per session
-- [ ] Hybrid retrieval: BM25 over tags + dense vector search
-
 ## Credits
 
-Inspired by the original tutorial from [Avkash Chauhan](https://github.com/avkash). Built with Streamlit, MusicBrainz, Last.fm, sentence-transformers, FAISS, and Ollama.
+Listening data: [ListenBrainz](https://listenbrainz.org) and [MusicBrainz](https://musicbrainz.org), CC0. Audio analysis: [AcousticBrainz](https://acousticbrainz.org), CC0. Previews and artwork in the app: Apple Music, linked on every song. The first version followed a tutorial by [Avkash Chauhan](https://github.com/avkash).
