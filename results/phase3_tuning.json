@@ -1,0 +1,236 @@
+{
+  "validation": {
+    "split": "2026-11-08",
+    "end": "2026-11-12",
+    "n_cold_items": 362228,
+    "known_artist_items": 0.5539135572070629,
+    "users": 20321,
+    "discoveries": 378035,
+    "warm_items_with_audio": 0.6780835838887604,
+    "cold_test_pairs_without_audio": 546395,
+    "train_listeners_hist": [
+      100420,
+      74563,
+      49261,
+      35615,
+      27565,
+      21339,
+      17486,
+      14031,
+      12026,
+      9922
+    ]
+  },
+  "tune_users": 5000,
+  "als": {
+    "factors": 512,
+    "alpha": 40,
+    "reg": 0.05,
+    "iterations": 15
+  },
+  "grid": [
+    {
+      "hidden": 256,
+      "weight_decay": 0.0001
+    },
+    {
+      "hidden": 256,
+      "weight_decay": 0.01
+    },
+    {
+      "hidden": 1024,
+      "weight_decay": 0.0001
+    },
+    {
+      "hidden": 1024,
+      "weight_decay": 0.01
+    }
+  ],
+  "trials": [
+    {
+      "name": "Audio \u2192 factors",
+      "params": {
+        "audio": true,
+        "artist": false,
+        "hidden": 256,
+        "epochs": 30,
+        "weight_decay": 0.0001,
+        "factor_r2": 0.0105
+      },
+      "ndcg": 0.0005764665087779372,
+      "recall": 0.0005850193923723335,
+      "new_artist_recall": 0.00030580539146675894
+    },
+    {
+      "name": "Artist \u2192 factors",
+      "params": {
+        "audio": false,
+        "artist": true,
+        "hidden": 256,
+        "epochs": 30,
+        "weight_decay": 0.0001,
+        "factor_r2": 0.154
+      },
+      "ndcg": 0.010737794862726554,
+      "recall": 0.016320902432620698,
+      "new_artist_recall": 0.0
+    },
+    {
+      "name": "Audio + artist \u2192 factors",
+      "params": {
+        "audio": true,
+        "artist": true,
+        "hidden": 256,
+        "epochs": 30,
+        "weight_decay": 0.0001,
+        "factor_r2": 0.1555
+      },
+      "ndcg": 0.010248416605734096,
+      "recall": 0.014434677271472936,
+      "new_artist_recall": 0.0
+    },
+    {
+      "name": "Audio \u2192 factors",
+      "params": {
+        "audio": true,
+        "artist": false,
+        "hidden": 256,
+        "epochs": 30,
+        "weight_decay": 0.01,
+        "factor_r2": 0.0106
+      },
+      "ndcg": 0.0005451043447441891,
+      "recall": 0.0005857546864899806,
+      "new_artist_recall": 0.0003372784801245984
+    },
+    {
+      "name": "Artist \u2192 factors",
+      "params": {
+        "audio": false,
+        "artist": true,
+        "hidden": 256,
+        "epochs": 30,
+        "weight_decay": 0.01,
+        "factor_r2": 0.1541
+      },
+      "ndcg": 0.01008357515239352,
+      "recall": 0.014275090992598731,
+      "new_artist_recall": 0.0
+    },
+    {
+      "name": "Audio + artist \u2192 factors",
+      "params": {
+        "audio": true,
+        "artist": true,
+        "hidden": 256,
+        "epochs": 30,
+        "weight_decay": 0.01,
+        "factor_r2": 0.1548
+      },
+      "ndcg": 0.01052379365344899,
+      "recall": 0.014736029141996636,
+      "new_artist_recall": 0.0
+    },
+    {
+      "name": "Audio \u2192 factors",
+      "params": {
+        "audio": true,
+        "artist": false,
+        "hidden": 1024,
+        "epochs": 30,
+        "weight_decay": 0.0001,
+        "factor_r2": 0.0107
+      },
+      "ndcg": 0.0007495223783511797,
+      "recall": 0.0007410664335664336,
+      "new_artist_recall": 0.0004618594082972209
+    },
+    {
+      "name": "Artist \u2192 factors",
+      "params": {
+        "audio": false,
+        "artist": true,
+        "hidden": 1024,
+        "epochs": 30,
+        "weight_decay": 0.0001,
+        "factor_r2": 0.2324
+      },
+      "ndcg": 0.018932258638541626,
+      "recall": 0.02643605774858097,
+      "new_artist_recall": 0.0
+    },
+    {
+      "name": "Audio + artist \u2192 factors",
+      "params": {
+        "audio": true,
+        "artist": true,
+        "hidden": 1024,
+        "epochs": 30,
+        "weight_decay": 0.0001,
+        "factor_r2": 0.2343
+      },
+      "ndcg": 0.01786948250905681,
+      "recall": 0.024986514089625544,
+      "new_artist_recall": 0.0
+    },
+    {
+      "name": "Audio \u2192 factors",
+      "params": {
+        "audio": true,
+        "artist": false,
+        "hidden": 1024,
+        "epochs": 30,
+        "weight_decay": 0.01,
+        "factor_r2": 0.0107
+      },
+      "ndcg": 0.0008339834645344544,
+      "recall": 0.0009678918303918305,
+      "new_artist_recall": 0.0006891672139350157
+    },
+    {
+      "name": "Artist \u2192 factors",
+      "params": {
+        "audio": false,
+        "artist": true,
+        "hidden": 1024,
+        "epochs": 30,
+        "weight_decay": 0.01,
+        "factor_r2": 0.2327
+      },
+      "ndcg": 0.017825551442989057,
+      "recall": 0.025693436546253882,
+      "new_artist_recall": 0.0
+    },
+    {
+      "name": "Audio + artist \u2192 factors",
+      "params": {
+        "audio": true,
+        "artist": true,
+        "hidden": 1024,
+        "epochs": 30,
+        "weight_decay": 0.01,
+        "factor_r2": 0.2337
+      },
+      "ndcg": 0.017416226979220784,
+      "recall": 0.025033359478498794,
+      "new_artist_recall": 0.0
+    }
+  ],
+  "best": {
+    "Audio \u2192 factors": {
+      "hidden": 1024,
+      "weight_decay": 0.01,
+      "epochs": 30
+    },
+    "Artist \u2192 factors": {
+      "hidden": 1024,
+      "weight_decay": 0.0001,
+      "epochs": 30
+    },
+    "Audio + artist \u2192 factors": {
+      "hidden": 1024,
+      "weight_decay": 0.0001,
+      "epochs": 30
+    }
+  }
+}

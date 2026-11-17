@@ -72,11 +72,29 @@ ItemKNN and ALS are statistically tied on recall (paired difference −0.16 pp, 
 
 Calibration is a free win at low strength. A mild popularity penalty buys 44% more long-tail discoveries for 3% of recall. MMR raises artist diversity (37% → 61% distinct artists) but not obscurity: diversity and discovery are different goals.
 
+### Cold start: recordings with fewer than 10 listeners
+
+Collaborative models can't score a recording nobody has played. Phase 3 ranks 328,681 such recordings (all with [AcousticBrainz](https://acousticbrainz.org) audio descriptors) for 10,000 listeners, and splits the result by whether the recording's artist has any other recordings in the warm catalog. Full table: [results/phase3.md](results/phase3.md).
+
+| Content used | Recall@20 | New-artist recall | Known-artist recall |
+|---|---|---|---|
+| Random | 0.02% | 0.02% | 0.02% |
+| 13 audio descriptors → ALS factors | 0.10% | **0.11%** | 0.07% |
+| Artist: "more from artists you play" | 2.54% | 0.00% | 3.43% |
+| Artist: mean ALS factor of the artist's other recordings | **2.62%** | 0.00% | **3.62%** |
+| Artist + audio → ALS factors | 2.24% | 0.00% | 3.12% |
+
+- **The artist is the cold-start signal.** Knowing the artist is 25× better than knowing the audio, and a plain average of the artist's factors beats a learned mapping (paired −0.29 pp, CI [−0.48, −0.11]).
+- **Low-level audio is real but faint.** 13 summary numbers (tempo, key, loudness, danceability …) predict 1.3% of the variance in ALS factors. That gives 5× random recall, and nothing on top of the artist (−0.09 pp, CI [−0.21, +0.03]). The features do describe sound: an item's nearest audio neighbour shares its artist 60× more often than chance. They encode how a recording sounds, not who will love it.
+- **New artists are the gap.** Every artist-based model scores 0% on them by construction. Only audio reaches them at all. A discovery product has to give new artists slots on purpose; ranking won't surface them.
+
 ```bash
 pip install -r requirements-lab.txt
 python scripts/fetch_listenbrainz.py      # ~4 GB download, ~1.5 GB kept
 python scripts/fetch_canonical.py         # 2.4 GB download, 60 MB kept
 python scripts/run_phase2.py --stage all  # several hours on an 8 GB laptop
+python scripts/fetch_acousticbrainz.py    # 3.3 GB download, 72 MB kept
+python scripts/run_phase3.py --stage all  # ~25 min
 ```
 
 ## Quickstart

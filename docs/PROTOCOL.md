@@ -44,7 +44,34 @@ Head = the most-listened recordings that together account for half of all traini
 
 Every per-user metric is reported as a mean with a 95% percentile bootstrap CI over users (1,000 resamples). Model comparisons against Popularity use **paired** bootstrap differences over the same users, which are much tighter than overlapping marginal CIs.
 
+## Cold start (phase 3)
+
+The warm catalog drops every recording with fewer than 10 training listeners, and collaborative models have no row for those recordings. Phase 3 asks whether *content* can recommend them.
+
+**Audio.** [AcousticBrainz](https://acousticbrainz.org) low-level descriptors (CC0, final 2022 dump), fetched by `scripts/fetch_acousticbrainz.py`. Every submission is mapped to its canonical recording. Numeric descriptors take the median over submissions and key/scale take the mode. Each recording becomes 13 numbers:
+- loudness, dynamic complexity and MFCC₀
+- log tempo and two tempo-histogram peaks
+- danceability and onset rate
+- tuning frequency and deviation
+- key on the circle of fifths (sin, cos)
+- scale (±1)
+
+Numeric descriptors are clipped to their 1st–99th percentile and z-scored on warm recordings. 1.49M of the 3.50M recordings in the listens have features. AcousticBrainz stopped in 2022, so recent releases are missing by construction.
+
+**Cold catalog.** A recording is in the cold catalog when all three hold:
+- it is outside the warm catalog;
+- it has audio features;
+- someone played it in the test window.
+
+Using test-window activity for *membership* mirrors a catalog where new recordings are added before anyone plays them. It reveals that a recording exists, not who will play it. Models rank the whole cold catalog for each user. Targets are a warm user's test-window plays of cold recordings that user had not played in training.
+
+**Slices.** A target is **known-artist** when its artist credit has at least one warm recording, otherwise **new-artist**. On new-artist targets, artist metadata says nothing and only the audio is left. Artist credits are compared as MusicBrainz artist-credit ids, so "A feat. B" is a different credit from "A".
+
+**Content → factors.** The strongest content models regress the tuned ALS item factors (512 dimensions) from content, then score a cold recording as user factor · predicted factor ([van den Oord et al., NeurIPS 2013](https://papers.nips.cc/paper/2013/hash/b3ba8f1bee1238a2f37603d90b58898d-Abstract.html)). Inputs are the audio vector, the artist's mean warm factor, or both. The regressor is a two-layer MLP trained on warm recordings that have audio, with early stopping on 5% of them held out. When training on warm recordings, each recording's artist mean **leaves that recording out**, as it would be for a recording the model has never seen. Width and weight decay are picked on the validation split's cold set.
+
 ## Known limitations
+
+- **Audio covers 39% of cold plays.** 509,770 of the 832,136 test-window plays of cold recordings by warm users fall on recordings with no AcousticBrainz features, mostly post-2022 releases. Phase 3 results are conditional on having audio.
 
 - **"New to the user" means new within the data we have.** Someone may have heard a "discovery" before they joined ListenBrainz.
 - **Phase 1 hyperparameters were untuned defaults.** Phase 2 tunes every model on a validation split carved from the training window (train before Nov 8, discoveries Nov 8–11), selects by NDCG@20, and only then scores the test window once. Untuned baselines are a well-documented way to overstate progress ([Ferrari Dacrema et al., RecSys 2019](https://doi.org/10.1145/3298689.3347058)).
