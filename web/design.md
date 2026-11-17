@@ -25,6 +25,8 @@ sound changed, whether someone made it again after the cutoff). One device carri
 | `--ink-2` | `#b4aea5` | secondary text (8.8:1) |
 | `--ink-3` | `#8a857d` | labels, axes (5.3:1 ground, 4.9:1 raise: AA) |
 | `--accent` | `#f0a63a` | **the route, and only the route** (9.4:1) |
+| `--focus` | `#f6c77d` | keyboard focus ring (a lighter amber so focus never reads as a route) |
+| hover on accent | `#f5b65a` | "Play the route" hover only |
 
 Amber means "route": the route line and stops, the selected step number, "Play the route", the
 highlighted series in a Lab figure (the thing that figure is about). Nothing else is amber.
@@ -98,3 +100,21 @@ route ends in the long tail, the steadiest descent, then most steps repeated aft
 
 **Lead artist.** The benchmark keys artists by credit, so "Korn feat. Skrillex" ≠ "Korn"; a route
 could visit Korn four times. The app's routes use the lead artist; the Lab says so.
+
+### 10.2 — Lab chapters 6 and 7: off-policy evaluation and bandits (2026-11-17)
+*Changes: §4 components (two figure types).*
+
+Two figures join the Lab. **Intervals**: one row per target policy, the true value as an ink tick,
+the doubly robust 90% range in amber (the estimator the chapter is about) and the direct method's in
+grey beneath it, effective sample size at the right; rows sorted by it, so the bands widen down the
+page. **Lines**: running hit rate over rounds on a log x axis, LinUCB in amber, the hindsight fit as
+a dashed reference, labels at the line ends nudged apart.
+
+Every comparative sentence is conditional on the data: "cannot say which is better" only when one
+policy's DR range contains the other's true value; "still larger than the gap" from the numbers.
+
+**Considered and rejected.** An RMSE-vs-log-size line chart (four estimators × seven policies is
+28 lines; the table has it). Plotting ε-greedy and Thompson curves (they sit on top of LinUCB and
+the greedy learner; the table has them).
+
+**Check.** Desktop and 375 px: no horizontal scroll; tests pass.

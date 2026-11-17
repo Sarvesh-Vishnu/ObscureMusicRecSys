@@ -89,6 +89,36 @@ Beam search (width 10) maximises Σ log p(step), with two optional terms: a pers
 
 For top-20 lists the "steps" are consecutive items, as if the list were played in order. Recall is measured against the listener's test-window discoveries, exactly as in phases 1–2. That is a strict test for a route, which is built to leave the listener's current neighbourhood.
 
+## Off-policy evaluation and bandits (phase 6)
+
+ListenBrainz contains no logs of a recommender showing songs to people, so there is no real logged policy to evaluate. Phase 6 uses the standard **supervised-to-bandit conversion** ([Dudík, Langford & Li, ICML 2011](https://arxiv.org/abs/1103.4601)): on data where the reward of every action is known, a simulated logging policy picks one action per context and only that reward is revealed. Each estimator is then scored against the target policy's exact value. The results are semi-synthetic by construction: the listeners, candidates and rewards are real; the logging is simulated.
+
+**Contexts, actions, rewards.** The 10,000 phase-2 test listeners (same seed). Each listener's actions are their 100 ItemKNN candidates (tuned k = 15, shrink 20; nothing already heard). Reward is 1 if the candidate is one of the listener's discoveries in the test window.
+
+**Features** x(u, a), all from training data: ItemKNN score (÷ the listener's max), ItemKNN rank (log), ALS score (phase 2's tuned 512-factor model, ÷ the listener's max |score|), log popularity (z-scored), long-tail flag, and whether the candidate's artist is already in the listener's history.
+
+**Logging policy**, fixed before any result: softmax over the scaled ItemKNN score at temperature 0.1, mixed with 10% uniform so every candidate has probability ≥ 0.001.
+
+**Target policies.** The logging policy itself (a sanity check: the estimators should agree), and the top pick of ItemKNN, ALS, PopPenalty β = 0.5, the most popular candidate, and "long tail first" (the best ItemKNN candidate in the tail). Also uniform over candidates.
+
+**Estimators.**
+- DM: a logistic reward model on the features, fitted on the log.
+- IPS and self-normalised IPS (SNIPS).
+- Doubly robust (DR).
+
+The reward model is cross-fitted on two folds of each log. Log sizes are 1,000, 3,000, 10,000 and 30,000 rounds, with 100 independent logs per size; each log draws listeners with replacement. Reported per estimator: mean, bias, standard deviation, RMSE against the truth, and the effective sample size (Σw)²/Σw².
+
+**Online learning.** Shared-parameter linear learners on the same features:
+- ε-greedy;
+- LinUCB ([Li et al., WWW 2010](https://arxiv.org/abs/1003.0146));
+- linear Thompson sampling ([Agrawal & Goyal, ICML 2013](https://arxiv.org/abs/1209.3352)).
+
+They are compared with a greedy learner that never explores, the fixed ItemKNN top pick and random. The listeners split in two at random: hyperparameters are tuned on one half (3 seeds), and results are reported on the other (50,000 rounds × 10 seeds, a random listener each round). Two references:
+- the best fixed linear policy in hindsight, a logistic model fitted on the report half's full feedback;
+- an oracle that finds a hit whenever the listener has one among their candidates.
+
+Rewards don't deplete: recommending a discovery doesn't remove it. Each round is one recommendation to a fresh draw of a listener.
+
 ## Known limitations
 
 - **Audio covers 39% of cold plays.** 509,770 of the 832,136 test-window plays of cold recordings by warm users fall on recordings with no AcousticBrainz features, mostly post-2022 releases. Phase 3 results are conditional on having audio.

@@ -131,6 +131,17 @@ describe("lab data matches the benchmark results", () => {
     for (const n of ["Top-20: PopPenalty β=0.5", "Route: most probable", "Route: personal γ=10 + smooth"]) expect(lab.routes.some((m) => m.name === n)).toBe(true);
   });
 
+  it("has the bandit results the Lab quotes", () => {
+    const b = lab.bandit!;
+    expect(b).toBeDefined();
+    for (const p of ["ItemKNN, top pick", "Long tail first", "PopPenalty β=0.5, top pick", "ALS, top pick"])
+      expect(b.ope.some((r) => r.n === 10_000 && r.policy === p)).toBe(true);
+    expect(b.explore.rows.some((r) => r.policy === "Long tail first")).toBe(true);
+    for (const k of ["ItemKNN top pick (no learning)", "Greedy (learns, never explores)"]) expect(b.online.finals[k]).toBeDefined();
+    expect(b.online.order.some((k) => k.startsWith("LinUCB"))).toBe(true);
+    for (const r of b.ope) for (const e of [r.DR, r.DM]) expect(e.q05).toBeLessThanOrEqual(e.q95);
+  });
+
   it("intervals contain their means", () => {
     const cis = [...lab.models.flatMap((m) => [m.recall, m.tail]), ...lab.routes.flatMap((m) => [m.recall, m.realism])];
     for (const [m, lo, hi] of cis) { expect(lo).toBeLessThanOrEqual(m + 1e-12); expect(hi).toBeGreaterThanOrEqual(m - 1e-12); }

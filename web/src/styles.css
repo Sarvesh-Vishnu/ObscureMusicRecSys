@@ -238,6 +238,8 @@ button, input { font: inherit; color: inherit; }
 .chart .path.on { stroke: var(--accent); stroke-width: 2; }
 .chart .lbl { font-family: var(--display); font-size: 12.5px; fill: var(--ink-2); }
 .chart .lbl.on { fill: var(--ink); font-weight: 500; }
+.chart .truth { stroke: var(--ink); stroke-width: 2; }
+.chart .threshold { stroke: var(--ink-3); stroke-width: 1; stroke-dasharray: 3 4; }
 .chart .bar-rect { fill: var(--ink-3); }
 .chart .bar-rect.on { fill: var(--accent); }
 .chart .hit { fill: transparent; cursor: default; }

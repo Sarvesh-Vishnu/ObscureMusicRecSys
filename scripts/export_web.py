@@ -138,6 +138,25 @@ def lab_data() -> dict:
                    for m in p4["route_table"]],
         "routeUsers": p4["route_users"], "audioMedian": p4["audio_median_edge"],
         "routeSeeds": p4["seeds"], "routeSteps": p4["steps"],
+        **({"bandit": bandit_data(json.loads((RESULTS / "phase6.json").read_text()))}
+           if (RESULTS / "phase6.json").exists() else {}),
+    }
+
+
+def bandit_data(p6: dict) -> dict:
+    ope, onl = p6["ope"], p6["online"]
+    return {
+        "meta": p6["meta"], "hitsPerListener": ope["hits_per_listener"], "listenersWithHit": ope["listeners_with_hit"],
+        "truth": ope["truth"], "tailTruth": ope["tail_truth"],
+        "ope": [{"n": r["log_size"], "policy": r["policy"], "truth": r["truth"], "ess": r["ess"],
+                 **{e: {k: r[e][k] for k in ("mean", "bias", "rmse", "q05", "q95")} for e in ("DM", "IPS", "SNIPS", "DR")}}
+                for r in ope["table"]],
+        "explore": {"eps": p6["explore"]["logging_eps"], "loggingValue": p6["explore"]["logging_value"],
+                    "baseLoggingValue": ope["logging_value"],
+                    "rows": [{"policy": r["policy"], "ess": r["ess"], "rmse": r["DR"]["rmse"]}
+                             for r in p6["explore"]["table"] if r["log_size"] == 10_000]},
+        "online": {k: onl[k] for k in ("best", "grid", "rounds", "seeds", "tune_listeners", "report_listeners",
+                                       "hindsight_value", "oracle_value", "hindsight_theta", "curves", "finals", "order")},
     }
 
 

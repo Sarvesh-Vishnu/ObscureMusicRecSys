@@ -14,7 +14,7 @@ The previous version was a thin wrapper around Spotify's `/recommendations` and 
   (AcousticBrainz tempo, key, danceability), and the other ways on. Two dials (smoothness λ, pull γ)
   step through a precomputed grid; next to the route, the tuned ItemKNN's top five for contrast.
   30-second previews come from Apple's iTunes Search API, matched by lead artist and title.
-- **Lab.** The benchmark below as five figures. Every number on the page is read from
+- **Lab.** The benchmark below as seven figures. Every number on the page is read from
   `results/phase*.json`; "tied" and "no measurable cost" are worded from whether a paired 95%
   interval spans zero.
 
@@ -137,6 +137,21 @@ Listens have timestamps, so histories are sequences. Back-to-back plays under 30
 - **Leaving the neighbourhood costs offline recall, and the dial shows how much.** A route is built to take the listener somewhere they weren't headed, so it rarely contains what they were about to play anyway (0.5% vs 6.1%). Turning up personal pull (γ) buys recall back at the price of depth. Offline recall can only score the first goal. Whether people *enjoy* the far end of a route needs an online test.
 - **One song per artist costs a third of ItemKNN's hits** (6.87% → 4.59%). Many "discoveries" are another track by an artist the listener already plays.
 
+### Off-policy evaluation and bandits
+
+ListenBrainz has no logs of a recommender showing songs, so phase 6 uses the supervised-to-bandit conversion (Dudík et al. 2011). Each of 10,000 test listeners has 100 ItemKNN candidates, and the reward is 1 if a candidate is one of their real discoveries. A simulated logging policy shows one candidate per listener and reveals only that reward. Every policy's true value is known exactly, so every estimate can be checked. Semi-synthetic by construction: real listeners and rewards, simulated logging. Full tables: [results/phase6.md](results/phase6.md).
+
+| Target policy (10,000 logged rounds) | True hit rate | DR 90% range | DM 90% range | Effective sample size |
+|---|---|---|---|---|
+| ItemKNN top pick | 6.46% | 5.80–6.99% | 6.30–7.33% | 3,142 |
+| PopPenalty β=0.5 top pick | 5.46% | 3.54–9.89% | 4.10–4.97% | 103 |
+| Long tail first | 4.69% | 2.22–10.21% | 3.63–4.99% | 43 |
+| ALS top pick | 6.99% | 2.52–12.85% | 6.45–9.14% | 34 |
+
+- **The policies worth trying are the hardest to judge from logs.** A log from a popularity-leaning recommender rarely shows long-tail songs. 10,000 rounds carry the information of about 43 for a "long tail first" policy, and doubly robust estimation can't tell it from ItemKNN. The direct method is steady but can be confidently wrong: its PopPenalty range misses the truth.
+- **Exploring in the log helps, at a price paid up front.** Showing a random candidate 50% of the time instead of 10% costs 22% of the logged system's hits. It cuts DR's error on "long tail first" from 2.41 to 1.83 points, still more than the 1.77-point gap to ItemKNN. *(A follow-up added after the first result.)*
+- **Learning from each hit beats the base ranker; exploring adds nothing here.** Linear bandits on six features (ItemKNN and ALS scores, popularity, long-tail and known-artist flags) climb from ItemKNN's fixed 6.67% to 7.56% (LinUCB, last fifth of 50,000 rounds). That's level with the same model fitted on all the feedback at once (7.50%). A greedy learner that never explores gets 7.55%, and tuning picked the smallest exploration in every family. This is consistent with Bastani, Bayati & Khosravi (2021) on greedy bandits with diverse contexts.
+
 ```bash
 pip install -r requirements-lab.txt
 python scripts/fetch_listenbrainz.py      # ~4 GB download, ~1.5 GB kept
@@ -145,6 +160,7 @@ python scripts/run_phase2.py --stage all  # several hours on an 8 GB laptop
 python scripts/fetch_acousticbrainz.py    # 3.3 GB download, 72 MB kept
 python scripts/run_phase3.py --stage all  # ~25 min
 python scripts/run_phase4.py --stage all  # ~1.5 h
+python scripts/run_phase6.py --stage all  # ~15 min (refits ALS)
 ```
 
 ## Quickstart

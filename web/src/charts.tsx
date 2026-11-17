@@ -166,3 +166,103 @@ export function DataTable({ head, rows, caption }: { head: string[]; rows: { on?
     </details>
   );
 }
+
+export interface Band { lo: number; hi: number; mid: number; on?: boolean; name: string }
+export interface IntervalRow { id: string; label: string; truth: number; bands: Band[]; note: string; tip: string[] }
+
+/** One row per policy: its true value (ink tick) and each estimator's 5–95% range across logs. */
+export function Intervals({ rows, fmt, desc, axis, max }: { rows: IntervalRow[]; fmt: Fmt; desc: string; axis: string; max?: number }) {
+  const t = useTip();
+  const [box, W] = useWidth<HTMLDivElement>(640);
+  const nb = Math.max(...rows.map((r) => r.bands.length));
+  const row = 18 + nb * 12, L = W < 480 ? 128 : 190, R = W < 480 ? 44 : 64, T = 8, B = 34;
+  const H = T + rows.length * row + B;
+  const hiV = max ?? Math.max(...rows.flatMap((r) => [r.truth, ...r.bands.map((b) => b.hi)]));
+  const sc = niceScale(hiV, 0);
+  const sx = (v: number) => L + (Math.max(v, 0) / sc.max) * (W - L - R);
+  return (
+    <div className="chart-wrap" ref={(el) => { (t.box as React.MutableRefObject<HTMLDivElement | null>).current = el; (box as React.MutableRefObject<HTMLDivElement | null>).current = el; }}>
+      <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} role="img" aria-label={desc}>
+        {sc.ticks.map((v) => (
+          <g key={v}>
+            <line className={v === 0 ? "base" : "grid"} x1={sx(v)} x2={sx(v)} y1={T} y2={H - B} />
+            <text className="axis" x={sx(v)} y={H - B + 18} textAnchor="middle">{fmt(v)}</text>
+          </g>
+        ))}
+        <text className="axis-title" x={W - R} y={H - 2} textAnchor="end">{axis} →</text>
+        {rows.map((r, i) => {
+          const y0 = T + i * row;
+          const yc = y0 + row / 2;
+          return (
+            <g key={r.id}>
+              <text className="lbl" x={L - 12} y={yc + 4} textAnchor="end">{r.label}</text>
+              {r.bands.map((b, j) => {
+                const y = y0 + 9 + j * 12 + (row - 18 - nb * 12) / 2 + 6;
+                return (
+                  <g key={b.name}>
+                    <line className={`ci${b.on ? " on" : ""}`} strokeWidth={b.on ? 3 : 2} x1={sx(b.lo)} x2={sx(b.hi)} y1={y} y2={y} />
+                    <circle className={`dot${b.on ? " on" : ""}`} cx={sx(b.mid)} cy={y} r={3.5} />
+                  </g>
+                );
+              })}
+              <line className="truth" x1={sx(r.truth)} x2={sx(r.truth)} y1={y0 + 3} y2={y0 + row - 3} />
+              <text className="axis" x={W - R + 8} y={yc + 4}>{r.note}</text>
+              <rect className="hit" x={0} y={y0} width={W} height={row} tabIndex={0} aria-label={`${r.label}: ${r.tip.join(", ")}`}
+                onMouseEnter={(e) => t.show(e, r.label, r.tip)} onMouseLeave={t.hide}
+                onFocus={(e) => t.show(e, r.label, r.tip)} onBlur={t.hide} />
+            </g>
+          );
+        })}
+      </svg>
+      {t.node}
+    </div>
+  );
+}
+
+export interface Series { id: string; label: string; x: number[]; y: number[]; on?: boolean; dashed?: boolean }
+
+/** Lines over a log-scaled x axis (rounds), labelled at their right end. */
+export function Lines({ series, yFmt, xLabel, yLabel, desc, refs = [] }: {
+  series: Series[]; yFmt: Fmt; xLabel: string; yLabel: string; desc: string; refs?: { label: string; y: number }[];
+}) {
+  const [box, W] = useWidth<HTMLDivElement>(640);
+  const H = W < 480 ? 300 : 340, L = 48, R = W < 480 ? 96 : 150, T = 20, B = 44;
+  const xs = series.flatMap((s) => s.x);
+  const x0 = Math.log10(Math.min(...xs)), x1 = Math.log10(Math.max(...xs));
+  const ys = niceScale(Math.max(...series.flatMap((s) => s.y), ...refs.map((r) => r.y)) * 1.05, 0);
+  const sx = (v: number) => L + ((Math.log10(v) - x0) / (x1 - x0)) * (W - L - R);
+  const sy = (v: number) => T + (1 - v / ys.max) * (H - T - B);
+  const decades = [];
+  for (let e = Math.ceil(x0); e <= Math.floor(x1); e++) decades.push(10 ** e);
+  // nudge end labels apart so they never overlap
+  const ends = series.map((s) => ({ id: s.id, y: sy(s.y[s.y.length - 1]) })).sort((a, b) => a.y - b.y);
+  for (let i = 1; i < ends.length; i++) if (ends[i].y - ends[i - 1].y < 14) ends[i].y = ends[i - 1].y + 14;
+  const endY = new Map(ends.map((e) => [e.id, e.y]));
+  return (
+    <div className="chart-wrap" ref={box}>
+      <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} role="img" aria-label={desc}>
+        {ys.ticks.map((v) => (
+          <g key={v}>
+            <line className={v === 0 ? "base" : "grid"} x1={L} x2={W - R} y1={sy(v)} y2={sy(v)} />
+            <text className="axis" x={L - 8} y={sy(v) + 4} textAnchor="end">{yFmt(v)}</text>
+          </g>
+        ))}
+        {decades.map((v) => <text key={v} className="axis" x={sx(v)} y={H - B + 18} textAnchor="middle">{v.toLocaleString("en-GB")}</text>)}
+        <text className="axis-title" x={W - R} y={H - 4} textAnchor="end">{xLabel} →</text>
+        <text className="axis-title" x={L} y={T - 8}>↑ {yLabel}</text>
+        {refs.map((r) => (
+          <g key={r.label}>
+            <line className="threshold" x1={L} x2={W - R} y1={sy(r.y)} y2={sy(r.y)} />
+          </g>
+        ))}
+        {[...series].sort((a, b) => Number(!!a.on) - Number(!!b.on)).map((s) => (
+          <g key={s.id}>
+            <path className={`path${s.on ? " on" : ""}`} strokeDasharray={s.dashed ? "4 4" : undefined}
+              d={s.x.map((x, i) => `${i ? "L" : "M"}${sx(x).toFixed(1)},${sy(s.y[i]).toFixed(1)}`).join(" ")} />
+            <text className={`lbl${s.on ? " on" : ""}`} x={W - R + 8} y={endY.get(s.id)! + 4}>{s.label}</text>
+          </g>
+        ))}
+      </svg>
+    </div>
+  );
+}

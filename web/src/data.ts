@@ -87,6 +87,28 @@ export interface Lab {
   audioMedian: number;
   routeSeeds: number;
   routeSteps: number;
+  bandit?: Bandit;
+}
+
+export interface Est { mean: number; bias: number; rmse: number; q05: number; q95: number }
+
+export interface Bandit {
+  meta: { K: number; users: number; logging: { tau: number; eps: number }; log_sizes: number[]; reps: number };
+  hitsPerListener: number;
+  listenersWithHit: number;
+  truth: Record<string, number>;
+  tailTruth: Record<string, number>;
+  ope: { n: number; policy: string; truth: number; ess: number; DM: Est; IPS: Est; SNIPS: Est; DR: Est }[];
+  explore: { eps: number; loggingValue: number; baseLoggingValue: number; rows: { policy: string; ess: number; rmse: number }[] };
+  online: {
+    best: { eps: number; alpha: number; v: number };
+    grid: { eps: number[]; alpha: number[]; v: number[] };
+    rounds: number; seeds: number; tune_listeners: number; report_listeners: number;
+    hindsight_value: number; oracle_value: number; hindsight_theta: Record<string, number>;
+    curves: Record<string, { t: number[]; mean: number[]; lo: number[]; hi: number[] }>;
+    finals: Record<string, { mean: number; sd: number; last_fifth: number; last_fifth_sd: number; gap_to_hindsight: number }>;
+    order: string[];
+  };
 }
 
 const LEAD_SPLIT = /\s*(?:,|&|\+|\/| and | x | vs\.? | feat\.?|ft\.?| featuring | with )\s*/i;
