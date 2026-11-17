@@ -65,7 +65,10 @@ def load():
     return ds, T, test, W15, W100, g, cs.warm_has_audio
 
 
-LEAD_SPLIT = re.compile(r"\s*(?:,|&|\+|/| and | x | vs\.? | feat\.?|ft\.?| featuring | with )\s*", re.I)
+# punctuation splits anywhere; words split only with whitespace on both sides, so
+# "Daft Punk" and "Taylor Swift" are not cut at "ft" and "AC/DC" stays whole
+LEAD_SPLIT = re.compile(r"\s*[,&+×•;]\s*|\s+(?:feat\.?|ft\.?|featuring|with|w/|x|vs\.?|versus|and|presents|pres\.|meets|"
+                        r"reinterpreted by|remixed by|conducted by|starring|/)\s+", re.I)
 
 
 def lead_artist(name: str) -> str:

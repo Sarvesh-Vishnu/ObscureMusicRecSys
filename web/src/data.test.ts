@@ -75,6 +75,9 @@ describe("helpers", () => {
     expect(leadArtist("Earth, Wind & Fire")).toBe("earth");
     expect(leadArtist("Simon & Garfunkel")).toBe("simon");
     expect(leadArtist("Radiohead")).toBe("radiohead");
+    for (const [name, lead] of [["Linkin Park reinterpreted by Jay Gordon", "linkin park"], ["Coldplay × BTS", "coldplay"],
+      ["24kGoldn • iann dior", "24kgoldn"], ["Apparat w/ Soap&Skin", "apparat"], ["Daft Punk", "daft punk"],
+      ["Taylor Swift", "taylor swift"], ["AC/DC", "ac/dc"], ["Andrew Bird", "andrew bird"]]) expect(leadArtist(name)).toBe(lead);
   });
 
   it("maps listeners to height on a log scale", () => {

@@ -111,7 +111,8 @@ export interface Bandit {
   };
 }
 
-const LEAD_SPLIT = /\s*(?:,|&|\+|\/| and | x | vs\.? | feat\.?|ft\.?| featuring | with )\s*/i;
+// punctuation splits anywhere; words split only with whitespace on both sides
+const LEAD_SPLIT = /\s*[,&+×•;]\s*|\s+(?:feat\.?|ft\.?|featuring|with|w\/|x|vs\.?|versus|and|presents|pres\.|meets|reinterpreted by|remixed by|conducted by|starring|\/)\s+/i;
 
 /** "Korn feat. Skrillex" -> "korn". Mirrors lead_artist() in scripts/export_web.py. */
 export function leadArtist(name: string): string {

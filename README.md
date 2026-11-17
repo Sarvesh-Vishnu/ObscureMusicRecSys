@@ -161,7 +161,6 @@ obscure/*.py, app.py   the earlier Streamlit version (see below)
 - An online test of routes: whether listeners keep, skip or save where a route ends.
 - A sequential neural model (SASRec) against the transition baseline.
 - Lyrics and tags for recordings with no listeners and no audio analysis.
-- Lead-artist parsing for credits like "X reinterpreted by Y", which the app's routes can still repeat.
 
 ## Earlier versions
 

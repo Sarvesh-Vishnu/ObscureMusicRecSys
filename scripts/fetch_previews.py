@@ -28,6 +28,7 @@ DATA = ROOT / "web" / "public" / "data"
 CACHE = ROOT / "data" / "itunes_cache.json"
 API = "https://itunes.apple.com/search"
 PAUSE = 3.2                                   # seconds between requests
+MATCHER = 2                                   # bump when the matching rules change, to re-check approximate matches once
 HEADERS = {"User-Agent": "obscure-web-build/1.0"}
 
 
@@ -88,7 +89,7 @@ def match(track: dict, results: list[dict]) -> dict | None:
         return None
     art = best.get("artworkUrl100", "")
     return {"url": best["previewUrl"], "art": art.replace("100x100bb", "300x300bb") if art else "",
-            "link": best.get("trackViewUrl", ""), "exact": best_score == 2,
+            "link": best.get("trackViewUrl", ""), "exact": best_score == 2, "v": MATCHER,
             "as": f"{best.get('artistName', '')} — {best.get('trackName', '')}"}
 
 
@@ -127,7 +128,7 @@ def main() -> int:
         hit = cache[t["mbid"]]
         if hit is None:      # misses with typographic punctuation predate plain()
             return plain(t["artist"] + t["title"]) != t["artist"] + t["title"]
-        return hit.get("exact") is False
+        return hit.get("exact") is False and hit.get("v") != MATCHER
     todo = [i for i in sorted(need) if stale(tracks[str(i)])]
     if "--merge-only" in sys.argv:
         todo = []

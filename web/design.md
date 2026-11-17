@@ -118,3 +118,12 @@ policy's DR range contains the other's true value; "still larger than the gap" f
 the greedy learner; the table has them).
 
 **Check.** Desktop and 375 px: no horizontal scroll; tests pass.
+
+### 10.3 — Lead artist, fixed (2026-11-17)
+*Amends: 10.1 "Lead artist".*
+
+The first rule missed "×", "•", "w/" and "reinterpreted by" (so Wonderwall's route visited
+Linkin Park twice), and split "ft" without spaces, cutting "Daft Punk" to "da" and "Taylor
+Swift" to "taylor swi". Punctuation now splits anywhere; separator words split only with
+whitespace on both sides. Same rule in `export_web.py` and `data.ts`, with tests on both
+sides. Re-export changed 4 of 1,197 routes and no seeds.

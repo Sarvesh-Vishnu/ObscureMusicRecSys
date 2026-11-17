@@ -14,6 +14,16 @@ def test_lead_artist_folds_credits():
     assert E.lead_artist("Clean Bandit & Jess Glynne") == "clean bandit"
     assert E.lead_artist("Post Malone, Swae Lee") == "post malone"
     assert E.lead_artist("Radiohead") == "radiohead"
+    assert E.lead_artist("Linkin Park reinterpreted by Jay Gordon") == "linkin park"
+    assert E.lead_artist("Coldplay × BTS") == "coldplay"
+    assert E.lead_artist("24kGoldn • iann dior") == "24kgoldn"
+    assert E.lead_artist("Apparat w/ Soap&Skin") == "apparat"
+    assert E.lead_artist("Duke Ellington and His Orchestra") == "duke ellington"
+    # names that merely contain a separator's letters stay whole
+    assert E.lead_artist("Daft Punk") == "daft punk"
+    assert E.lead_artist("Taylor Swift") == "taylor swift"
+    assert E.lead_artist("AC/DC") == "ac/dc"
+    assert E.lead_artist("Andrew Bird") == "andrew bird"
 
 
 def r(artist, title, url="u"):
