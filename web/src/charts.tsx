@@ -96,7 +96,7 @@ export function Scatter({ points, paths = [], xLabel, yLabel, xFmt, yFmt, xMax, 
             <g key={p.id}>
               <circle className={`dot${p.on ? " on" : ""}`} cx={cx} cy={cy} r={5} />
               {pos && <text className={`lbl${p.on ? " on" : ""}`} x={lx} y={ly} textAnchor={anchor}>{p.label}</text>}
-              <circle className="hit" cx={cx} cy={cy} r={14} tabIndex={0} aria-label={`${p.label}: ${p.tip.join(", ")}`}
+              <circle className="hit" cx={cx} cy={cy} r={14} role="img" tabIndex={0} aria-label={`${p.label}: ${p.tip.join(", ")}`}
                 onMouseEnter={(e) => t.show(e, p.label, p.tip)} onMouseLeave={t.hide}
                 onFocus={(e) => t.show(e, p.label, p.tip)} onBlur={t.hide} />
             </g>
@@ -138,7 +138,7 @@ export function Bars({ rows, fmt, max, desc, axis }: { rows: BarRow[]; fmt: Fmt;
               <rect className={`bar-rect${r.on ? " on" : ""}`} x={L} y={y - 7} width={w} height={14} rx={2} />
               <line className="ci" x1={sx(r.v[1])} x2={sx(r.v[2])} y1={y} y2={y} />
               <text className="axis" x={sx(Math.max(r.v[2], r.v[0])) + 8} y={y + 4}>{fmt(r.v[0])}</text>
-              <rect className="hit" x={0} y={y - row / 2} width={W} height={row} tabIndex={0} aria-label={`${r.label}: ${r.tip.join(", ")}`}
+              <rect className="hit" x={0} y={y - row / 2} width={W} height={row} role="img" tabIndex={0} aria-label={`${r.label}: ${r.tip.join(", ")}`}
                 onMouseEnter={(e) => t.show(e, r.label, r.tip)} onMouseLeave={t.hide}
                 onFocus={(e) => t.show(e, r.label, r.tip)} onBlur={t.hide} />
             </g>
@@ -154,7 +154,7 @@ export function DataTable({ head, rows, caption }: { head: string[]; rows: { on?
   return (
     <details className="table">
       <summary>Show as table</summary>
-      <div className="tbl-scroll">
+      <div className="tbl-scroll" tabIndex={0} role="region" aria-label={caption}>
         <table className="data">
           <caption className="sr-only">{caption}</caption>
           <thead><tr>{head.map((h) => <th key={h} scope="col">{h}</th>)}</tr></thead>
@@ -207,7 +207,7 @@ export function Intervals({ rows, fmt, desc, axis, max }: { rows: IntervalRow[];
               })}
               <line className="truth" x1={sx(r.truth)} x2={sx(r.truth)} y1={y0 + 3} y2={y0 + row - 3} />
               <text className="axis" x={W - R + 8} y={yc + 4}>{r.note}</text>
-              <rect className="hit" x={0} y={y0} width={W} height={row} tabIndex={0} aria-label={`${r.label}: ${r.tip.join(", ")}`}
+              <rect className="hit" x={0} y={y0} width={W} height={row} role="img" tabIndex={0} aria-label={`${r.label}: ${r.tip.join(", ")}`}
                 onMouseEnter={(e) => t.show(e, r.label, r.tip)} onMouseLeave={t.hide}
                 onFocus={(e) => t.show(e, r.label, r.tip)} onBlur={t.hide} />
             </g>

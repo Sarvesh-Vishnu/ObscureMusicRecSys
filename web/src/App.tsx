@@ -35,7 +35,7 @@ export function App() {
 
   return (
     <>
-      <a className="sr-only" href="#content">Skip to content</a>
+      <a className="skip" href="#content" onClick={(e) => { e.preventDefault(); document.getElementById("content")?.focus(); }}>Skip to content</a>
       <header className="top">
         <div className="wrap">
           <a className="mark" href="#/"><Mark />Obscure</a>
@@ -46,7 +46,7 @@ export function App() {
           </nav>
         </div>
       </header>
-      <div id="content">
+      <div id="content" tabIndex={-1}>
         {error && <div className="wrap failed" role="alert">The data didn’t load ({error}). Reload to try again.</div>}
         {!data && !error && <div className="wrap loading" aria-live="polite">Loading routes…</div>}
         {data && (

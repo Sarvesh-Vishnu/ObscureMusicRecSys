@@ -127,3 +127,26 @@ Linkin Park twice), and split "ft" without spaces, cutting "Daft Punk" to "da" a
 Swift" to "taylor swi". Punctuation now splits anywhere; separator words split only with
 whitespace on both sides. Same rule in `export_web.py` and `data.ts`, with tests on both
 sides. Re-export changed 4 of 1,197 routes and no seeds.
+
+### 10.4 — Playback that works everywhere, covers on every list, accessibility pass (2026-11-17)
+*Changes: §4 components (player, seed head, side lists).*
+
+**Playback.** Safari and iOS start audio only from inside the user's own gesture; the first player
+called `play()` after a React render, so taps did nothing there. Every control now sets the source
+and plays synchronously in its handler; the element then continues on its own between previews. A
+preview that fails says so in the bar and the queue moves on. The OS media controls (lock screen,
+headset, keyboard media keys) get title, artist, artwork and play/pause/next/previous.
+
+**Covers.** The seed has its album cover (168 px; 112 px on phones). The standard recommender's
+five songs and the seed picker carry covers, and those five are playable. A song with no matched
+preview keeps an empty frame and a MusicBrainz link, never a stand-in picture.
+
+**Accessibility** (axe-core 4.10 on both views: 0 violations, from 2 serious types on 45 nodes).
+Chart points carry `role="img"` with their label; scrolling tables are focusable named regions; the
+skip link shows on focus and moves focus without touching the hash route; the route summary is a
+polite live region, so a dial change is announced; the tracklist and dials have headings; play
+buttons name the artist as well as the song.
+
+**Considered and rejected.** Playing the "other ways on" songs (they were never matched to previews;
+matching them costs ~2 hours of lookups for a secondary list). Autoplay on load (needs a gesture
+anyway, and sound nobody asked for).

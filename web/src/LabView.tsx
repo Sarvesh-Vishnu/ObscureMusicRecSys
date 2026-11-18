@@ -200,7 +200,7 @@ function Next({ lab }: { lab: Lab }) {
       </p>
       <p className="method">First-order transition counts with an ItemKNN back-off and a popularity discount tuned on validation (Ludewig &amp; Jannach 2018), scored on a random sample of held-out transitions.</p>
     </>}>
-      <div className="tbl-scroll">
+      <div className="tbl-scroll" tabIndex={0} role="region" aria-label="Next-song prediction on held-out transitions">
         <table className="data">
           <caption className="sr-only">Next-song prediction on held-out transitions</caption>
           <thead><tr><th scope="col">Model</th><th scope="col">Hit@20</th><th scope="col">MRR@20</th><th scope="col">Hit@20, new to listener</th><th scope="col">Hit@20, long tail</th></tr></thead>
