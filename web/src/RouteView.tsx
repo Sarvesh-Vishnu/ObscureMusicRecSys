@@ -29,9 +29,14 @@ export function RouteView({ data, tracks, seed, lam, gamma }: {
   const go = (s: number, l: number, g: number) => { location.hash = routeHash(s, l, g, meta); };
   const playable = ids.filter((i) => tracks[i].preview);
   const routePlaying = player.queue.length > 1 && player.queue.every((q) => ids.includes(q));
+  const nowIdx = player.current != null ? ids.indexOf(player.current) : -1;
+  const obTracks = r.obvious.map((i) => tracks[i]);
+  const obHead = obTracks.filter((t) => !t.tail).length;
 
+  const obLs = obTracks.map((t) => t.listeners);
   const figLabel = `Route from ${seedT.title} by ${seedT.artist}: ` +
-    stopTracks.slice(1).map((t, i) => `${i + 1}, ${t.title} by ${t.artist}, ${int(t.listeners)} listeners`).join("; ");
+    stopTracks.slice(1).map((t, i) => `${i + 1}, ${t.title} by ${t.artist}, ${int(t.listeners)} listeners`).join("; ") +
+    `. For comparison, a standard recommender's five picks have ${int(Math.min(...obLs))} to ${int(Math.max(...obLs))} listeners.`;
 
   return (
     <main className="wrap">
@@ -58,12 +63,18 @@ export function RouteView({ data, tracks, seed, lam, gamma }: {
               Start from another song
             </a>
           </div>
+          {playable.length > 0 && playable.length < ids.length && (
+            <p className="note playable">
+              {playable.length} of {ids.length} songs have a preview; the route plays those and skips the rest.
+            </p>
+          )}
           </div>
         </header>
 
         <div className="a-figure">
           <figure className="figure">
-            <RouteFigure stops={stopTracks} meta={meta} selected={selected} onSelect={setSelected} label={figLabel} />
+            <RouteFigure stops={stopTracks} meta={meta} selected={selected} onSelect={setSelected} label={figLabel}
+              now={nowIdx >= 0 ? nowIdx : null} travelling={routePlaying} obvious={obTracks} />
           </figure>
           <p className="figcaption" aria-live="polite">
             {sum.endsInTail
@@ -71,6 +82,10 @@ export function RouteView({ data, tracks, seed, lam, gamma }: {
               : <>Ends on <b>{int(sum.endListeners)} listeners</b>, still in the head: with this much pull the route stays near the seed. </>}
             {plural(sum.tailStops, "stop")} of 5 in the long tail. {sum.heldOut} of 5 steps were made again by a listener
             after the cutoff ({testWindow(meta)}), data no model saw.
+          </p>
+          <p className="figkey">
+            <span className="ob-swatch" aria-hidden="true" /> Grey, at the right: the five songs a standard recommender
+            returns next, {obHead === 5 ? "all" : `${obHead} of 5`} in the head.
           </p>
         </div>
 
@@ -102,26 +117,27 @@ export function RouteView({ data, tracks, seed, lam, gamma }: {
           {ids.map((id, i) => (
             <StopRow key={`${i}-${id}`} n={i} t={tracks[id]} step={i ? steps[i - 1] : null} prev={i ? tracks[ids[i - 1]] : null}
               tracks={tracks} meta={data.meta} open={selected === i} onToggle={() => setSelected(selected === i ? -1 : i)}
-              playing={player.current === id && player.playing} onPlay={() => player.toggle(id)} gamma={G} />
+              playing={player.current === id && player.playing} onPlay={() => player.toggle(id)} gamma={G}
+              now={nowIdx === i} />
           ))}
         </ol>
         </section>
 
         <Obvious r={r} tracks={tracks} steps={steps} />
-        <Picker routes={routes} tracks={tracks} current={r.seed} onPick={(s) => go(s, L, G)} />
+        <Picker routes={routes} tracks={tracks} current={r.seed} onPick={(s) => go(s, L, G)} defaults={meta.default} />
       </div>
     </main>
   );
 }
 
-function StopRow({ n, t, step, prev, tracks, meta, open, onToggle, playing, onPlay, gamma }: {
+function StopRow({ n, t, step, prev, tracks, meta, open, onToggle, playing, onPlay, gamma, now }: {
   n: number; t: Track; step: Step | null; prev: Track | null; tracks: Tracks; meta: RoutesFile["meta"];
-  open: boolean; onToggle: () => void; playing: boolean; onPlay: () => void; gamma: number;
+  open: boolean; onToggle: () => void; playing: boolean; onPlay: () => void; gamma: number; now: boolean;
 }) {
   const mb = `https://musicbrainz.org/recording/${t.mbid}`;
   const id = `why-${n}`;
   return (
-    <li className={`stop-row${open ? " selected" : ""}`}>
+    <li className={`stop-row${open ? " selected" : ""}${now ? " now" : ""}`} aria-current={now || undefined}>
       <div className="stop-main">
         <span className="stop-n" aria-hidden="true">{n === 0 ? "◦" : n}</span>
         <Cover t={t} size={44} />
@@ -254,7 +270,9 @@ function Obvious({ r, tracks, steps }: { r: SeedRoutes; tracks: Tracks; steps: S
   );
 }
 
-function Picker({ routes, tracks, current, onPick }: { routes: SeedRoutes[]; tracks: Tracks; current: number; onPick: (s: number) => void }) {
+function Picker({ routes, tracks, current, onPick, defaults }: {
+  routes: SeedRoutes[]; tracks: Tracks; current: number; onPick: (s: number) => void; defaults: [number, number];
+}) {
   const [q, setQ] = useState("");
   const list = useMemo(() => searchSeeds(routes, tracks, q), [routes, tracks, q]);
   const groups: [string, SeedRoutes[]][] = q
@@ -275,10 +293,13 @@ function Picker({ routes, tracks, current, onPick }: { routes: SeedRoutes[]; tra
             {name === "From India" && <p className="note">ListenBrainz has few listeners in India, so these routes rest on fewer plays.</p>}
             {items.map((x) => {
               const t = tracks[x.seed];
+              const ids = stopIds(x, routeFor(x, ...defaults));
+              const heard = ids.filter((i) => tracks[i].preview).length;
               return (
                 <button key={x.seed} aria-current={x.seed === current} onClick={() => { onPick(x.seed); window.scrollTo({ top: 0 }); }}>
                   <Cover t={t} size={32} className="art xs" />
-                  <span className="who">{t.title} <span>· {t.artist}</span></span>
+                  <span className="who">{t.title} <span>· {t.artist}</span>
+                    {heard < ids.length && <span className="pv"> · {heard} of {ids.length} playable</span>}</span>
                   <span className="mono muted">{int(t.listeners)}</span>
                 </button>
               );

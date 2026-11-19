@@ -103,6 +103,14 @@ describe("helpers", () => {
     expect(tracks[f.seed].listeners).toBeGreaterThanOrEqual(500);
   });
 
+  it("lands on a route a visitor can hear end to end, when one qualifies", () => {
+    const f = featured(data.routes, tracks, meta);
+    const heard = (r: typeof f) => stops(r, routeFor(r, ...meta.default)).every((i) => tracks[i].preview);
+    const any = data.routes.some((r) => r.group === "top" && tracks[r.seed].listeners >= 500 && heard(r)
+      && summarise(r, routeFor(r, ...meta.default), tracks).endsInTail);
+    expect(heard(f)).toBe(any);
+  });
+
   it("summarises a route from its data", () => {
     const r = data.routes[0];
     const s = summarise(r, routeFor(r, ...meta.default), tracks);

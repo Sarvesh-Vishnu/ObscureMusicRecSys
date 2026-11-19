@@ -113,12 +113,21 @@ button, input { font: inherit; color: inherit; }
 .figure .stop.seed { fill: var(--ink); stroke: var(--ink); }
 .figure .stop.end { fill: var(--accent); }
 .figure .halo { fill: none; stroke: var(--accent); stroke-width: 1; opacity: 0.7; }
+.figure .now { fill: none; stroke: var(--accent); stroke-width: 2; }
+.figure .line.ahead { opacity: 0.3; stroke-dasharray: 2 5; }
+.figure .ob-range { stroke: var(--rule-2); stroke-width: 1; }
+.figure .ob-dot { fill: var(--ink-3); stroke: var(--ground); stroke-width: 1.5; }
+.figure .ob-sep { stroke: var(--rule); stroke-width: 1; }
 .figure .hit { fill: transparent; cursor: pointer; }
 .figure .tag { font-family: var(--display); font-size: 13px; fill: var(--ink); paint-order: stroke; stroke: var(--ground); stroke-width: 5px; stroke-linejoin: round; }
 .figure .zone { paint-order: stroke; stroke: var(--ground); stroke-width: 4px; }
 .figure .tag-sub { font-family: var(--mono); font-size: 11px; fill: var(--ink-3); }
 .figcaption { margin: var(--s-3) 0 0; color: var(--ink-2); max-width: 62ch; }
 .figcaption b { color: var(--ink); font-weight: 500; }
+.figkey { margin: var(--s-2) 0 0; color: var(--ink-3); font-size: 14px; max-width: 62ch; }
+.ob-swatch { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--ink-3); margin-right: 4px; vertical-align: 1px; }
+.note.playable { margin: var(--s-3) 0 0; font-size: 13px; color: var(--ink-3); }
+.seeds .pv { color: var(--ink-3); }
 
 /* dials */
 .dials { display: grid; gap: var(--s-5); padding-top: var(--s-6); }
@@ -138,7 +147,8 @@ button, input { font: inherit; color: inherit; }
 .stop-row { border-bottom: 1px solid var(--rule); }
 .stop-main { display: grid; grid-template-columns: 28px 44px minmax(0, 1fr) auto 44px; gap: var(--s-3); align-items: center; padding: 10px 0; }
 .stop-n { font-family: var(--mono); font-size: 13px; color: var(--ink-3); text-align: right; }
-.stop-row.selected .stop-n { color: var(--accent); }
+.stop-row.selected .stop-n, .stop-row.now .stop-n { color: var(--accent); }
+.stop-row.now .stop-title .t { color: var(--accent); }
 .art { width: 44px; height: 44px; background: var(--raise); border: 1px solid var(--rule); object-fit: cover; display: block; }
 .stop-title { display: block; text-align: left; background: none; border: 0; padding: 4px 0; cursor: pointer; min-width: 0; }
 .stop-title .t { display: block; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

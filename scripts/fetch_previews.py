@@ -2,6 +2,7 @@
 
     python scripts/fetch_previews.py               # ~20 lookups a minute (Apple's limit); cached
     python scripts/fetch_previews.py --merge-only  # write what the cache already holds, no lookups
+    python scripts/fetch_previews.py --fallback    # then retry the misses through the artist's catalogue
 
 Only tracks a visitor can play are looked up: seeds, route stops and the "obvious"
 picks. A match needs the same lead artist and the same title once tags such as
@@ -9,6 +10,12 @@ picks. A match needs the same lead artist and the same title once tags such as
 (live, acoustic, remix...) unless ours is too; anything else stays unmatched and
 the app links to MusicBrainz instead. Results are cached in data/itunes_cache.json
 so a rerun only asks about new tracks.
+
+Apple's search often leaves an artist's best-known recording out of its results
+("Green Day American Idiot" returns covers and other Green Day songs). --fallback
+retries each miss through the artist instead: find the artist whose name is the
+lead artist exactly, list up to 200 of their songs, and apply the same match. It
+tries the US store, then the Indian one. Its results go to data/itunes_fallback.json.
 """
 
 from __future__ import annotations
@@ -26,7 +33,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "web" / "public" / "data"
 CACHE = ROOT / "data" / "itunes_cache.json"
+FALLBACK = ROOT / "data" / "itunes_fallback.json"
 API = "https://itunes.apple.com/search"
+LOOKUP = "https://itunes.apple.com/lookup"
+STORES = ["US", "IN"]
 PAUSE = 3.2                                   # seconds between requests
 MATCHER = 2                                   # bump when the matching rules change, to re-check approximate matches once
 HEADERS = {"User-Agent": "obscure-web-build/1.0"}
@@ -94,11 +104,15 @@ def match(track: dict, results: list[dict]) -> dict | None:
 
 
 def lookup(track: dict) -> list[dict]:
-    q = urllib.parse.urlencode({"term": f"{lead_artist(plain(track['artist']))} {core_title(plain(track['title']))}",
-                                "media": "music", "entity": "song", "limit": 25, "country": "US"})
+    return get(API, {"term": f"{lead_artist(plain(track['artist']))} {core_title(plain(track['title']))}",
+                     "media": "music", "entity": "song", "limit": 25, "country": "US"})
+
+
+def get(url: str, params: dict) -> list[dict]:
+    q = urllib.parse.urlencode(params)
     for attempt in range(5):
         try:
-            req = urllib.request.Request(f"{API}?{q}", headers=HEADERS)
+            req = urllib.request.Request(f"{url}?{q}", headers=HEADERS)
             with urllib.request.urlopen(req, timeout=20) as resp:
                 return json.loads(resp.read().decode("utf-8")).get("results", [])
         except urllib.error.HTTPError as e:
@@ -109,6 +123,45 @@ def lookup(track: dict) -> list[dict]:
         except (urllib.error.URLError, TimeoutError):
             time.sleep(10)
     raise RuntimeError("iTunes kept refusing; try again later")
+
+
+def artist_ids(name: str, store: str) -> list[int]:
+    """Apple artists whose name is exactly this lead artist (after normalising)."""
+    want = norm(name)
+    found = get(API, {"term": name, "entity": "musicArtist", "limit": 10, "country": store})
+    time.sleep(PAUSE)
+    return [a["artistId"] for a in found if norm(a.get("artistName", "")) == want][:2]
+
+
+def catalogue(aid: int, store: str) -> list[dict]:
+    songs = get(LOOKUP, {"id": aid, "entity": "song", "limit": 200, "country": store})
+    time.sleep(PAUSE)
+    return [x for x in songs if x.get("wrapperType") == "track"]
+
+
+def fallback(todo: list[dict], found: dict) -> None:
+    """Retry misses through each lead artist's catalogue, one artist at a time."""
+    by_artist: dict[str, list[dict]] = {}
+    for t in todo:
+        by_artist.setdefault(lead_artist(plain(t["artist"])), []).append(t)
+    print(f"fallback: {len(todo)} misses across {len(by_artist)} artists", flush=True)
+    for n, (name, ts) in enumerate(by_artist.items(), 1):
+        left = list(ts)
+        for store in STORES:
+            if not left or not name:
+                break
+            for aid in artist_ids(name, store):
+                songs = catalogue(aid, store)
+                for t in list(left):
+                    m = match(t, songs)
+                    if m:
+                        found[t["mbid"]] = {**m, "store": store}
+                        left.remove(t)
+        for t in left:
+            found[t["mbid"]] = None
+        if n % 10 == 0 or n == len(by_artist):
+            FALLBACK.write_text(json.dumps(found, ensure_ascii=False))
+            print(f"  {n}/{len(by_artist)} artists  recovered {sum(v is not None for v in found.values())}", flush=True)
 
 
 def main() -> int:
@@ -130,7 +183,7 @@ def main() -> int:
             return plain(t["artist"] + t["title"]) != t["artist"] + t["title"]
         return hit.get("exact") is False and hit.get("v") != MATCHER
     todo = [i for i in sorted(need) if stale(tracks[str(i)])]
-    if "--merge-only" in sys.argv:
+    if "--merge-only" in sys.argv or "--fallback" in sys.argv:
         todo = []
     print(f"{len(need)} playable tracks, {len(todo)} to look up (~{len(todo) * PAUSE / 60:.0f} min)", flush=True)
     for n, i in enumerate(todo, 1):
@@ -141,9 +194,14 @@ def main() -> int:
             hits = sum(v is not None for v in cache.values())
             print(f"  {n}/{len(todo)}  matched so far {hits}/{len(cache)}", flush=True)
         time.sleep(PAUSE)
+    found = json.loads(FALLBACK.read_text()) if FALLBACK.exists() else {}
+    if "--fallback" in sys.argv:
+        misses = [tracks[str(i)] for i in sorted(need)
+                  if cache.get(tracks[str(i)]["mbid"]) is None and tracks[str(i)]["mbid"] not in found]
+        fallback(misses, found)
     for i in need:
         t = tracks[str(i)]
-        m = cache.get(t["mbid"])
+        m = cache.get(t["mbid"]) or found.get(t["mbid"])
         if m:
             t["preview"] = m
         else:

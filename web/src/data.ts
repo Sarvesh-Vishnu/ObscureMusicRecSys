@@ -195,7 +195,8 @@ export function featured(routes: SeedRoutes[], tracks: Tracks, meta: RouteMeta):
     const ls = stops(r, steps).map((i) => tracks[i].listeners);
     const down = ls.slice(1).filter((l, i) => l < ls[i]).length;
     const s = summarise(r, steps, tracks);
-    return (s.endsInTail ? 1000 : 0) + down * 10 + s.heldOut * 3 + s.observed;
+    const heard = stops(r, steps).every((i) => tracks[i].preview);   // a landing route you can hear end to end
+    return (s.endsInTail ? 1000 : 0) + (heard ? 500 : 0) + down * 10 + s.heldOut * 3 + s.observed;
   };
   const known = routes.filter((r) => r.group === "top" && tracks[r.seed].listeners >= 500);
   return (known.length ? known : routes).reduce((best, r) => (score(r) > score(best) ? r : best));

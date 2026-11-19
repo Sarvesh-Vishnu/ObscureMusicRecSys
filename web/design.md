@@ -52,7 +52,7 @@ grey (a highlight encoding, not a categorical palette).
 - **Tracklist**: number, art (or empty frame), title/artist button that expands the evidence,
   listeners + head/tail, play (or MusicBrainz link when no preview). Evidence is a definition list.
 - **Player bar**: appears on first play. Art, title, position in queue, prev/play/next, Apple credit
-  link, 2 px amber progress.
+  link, 2 px amber progress. Previews cross over 1.6 s (equal power); a skip fades out in 0.25 s.
 - **Lab figures** (`charts.tsx`): scatter with CI crosshairs, bars with CIs. Direct labels, hover
   and focus tooltips, "Show as table" under each.
 
@@ -150,3 +150,48 @@ buttons name the artist as well as the song.
 **Considered and rejected.** Playing the "other ways on" songs (they were never matched to previews;
 matching them costs ~2 hours of lookups for a secondary list). Autoplay on load (needs a gesture
 anyway, and sound nobody asked for).
+
+### 10.5 — The figure follows the music; standard picks on the figure; fewer silent stops (2026-11-18)
+*Changes: §4 components (route figure, tracklist, seed picker).*
+
+**Playback on the figure.** The stop whose preview is loaded gets an amber ring and the figure's
+label; while the route itself is the queue, the stretch not yet heard is drawn faint and dotted,
+so the descent fills in as you listen. The tracklist row of the playing stop turns amber
+(`aria-current`). Selection (the halo and the open evidence) stays the reader's; playback never
+expands or collapses a row, so nothing shifts under the reader.
+
+**Standard picks.** The ItemKNN top 5 sit in a grey column of their own past step 5, headed
+"standard", with a key line under the caption counting how many are in the head. Past the end, not
+at step 1: the comparison that matters is where each leaves you, and at step 1 a route that starts
+in the head (Take On Me → Toto) made the cluster read as "the same".
+
+**Fewer silent stops.** Apple's search leaves many best-known recordings out of its results
+("Green Day American Idiot" returns covers). `fetch_previews.py --fallback` retries each miss
+through the artist's catalogue (exact lead-artist name, then the same matcher), US store then
+Indian. A route with gaps says how many of its songs have a preview, the picker marks seeds that
+are not fully playable, and the landing rule prefers a route you can hear end to end.
+
+**Considered and rejected.** Grey dots at step 1 (above). Auto-opening the playing stop's evidence
+(it shifts the page every 30 seconds). A dot travelling between stops with the preview's progress
+(the stop is what's playing, not the move). Loosening the matcher to fill gaps (a wrong song is
+worse than a link to MusicBrainz).
+
+### 10.6 — Crossfades (2026-11-18)
+*Changes: §4 player.*
+
+Two audio elements take turns. With 1.6 s of the playing preview left, the next starts on the
+other element and the two cross over with equal-power curves (cos/sin, so the overlap doesn't dip
+or swell); the queue position, figure ring and tracklist move at the start of the crossover. A
+skip, previous or another song fades the old preview out over 0.25 s instead of clicking off;
+pausing mid-crossover stops both. The idle element is started once, silently, inside the first
+tap, so a browser that wants a gesture per element lets it play later; if one still refuses, the
+player drops back to one element and cuts for the rest of the visit.
+
+**iPhone and iPad keep cuts.** iOS Safari ignores an audio element's volume (the player detects
+this), so a fade there would need Web Audio. Apple's preview server allows it (CORS `*`), but
+routing previews through Web Audio on iOS risks silence when the screen locks, and it can't be
+checked without a device. Revisit after a real-device test.
+
+**Considered and rejected.** Web Audio everywhere (above). Longer crossfades (3 s+ eats a tenth of
+a 30-second preview, and the step being judged is the sound of the next song, not the blend).
+A setting to turn fades off (nobody asked; a skip is already near-instant).
