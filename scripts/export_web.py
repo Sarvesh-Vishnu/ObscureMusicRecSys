@@ -1,6 +1,6 @@
 """Export the static data the web app reads (web/public/data/).
 
-    python scripts/export_web.py            # routes.json, tracks.json, lab.json
+    python scripts/export_web.py            # routes.json, routes-more.json, tracks.json, lab.json
     python scripts/fetch_previews.py        # then add 30-second previews (slow, cached)
 
 Every route in the app is computed here by the same code the benchmark measured
@@ -41,6 +41,7 @@ LAMS = [0.0, 1.0, 2.0]                 # smoothness
 GAMMAS = [0.0, 1.0, 2.0]               # pull towards the seed's listeners
 DEFAULT = (1.0, 0.0)                   # (lam, gamma) the app opens on: smooth, no pull
 N_SEEDS = 120
+MORE = 2            # alternative routes per seed and setting, each avoiding every stop of the routes before it
 # Indian artists present in the warm catalog (checked by hand against ds.items);
 # ListenBrainz has few Indian listeners, so these routes are thinner.
 INDIA = ["Hanumankind", "Local Train", "Arijit Singh", "Prateek Kuhad", "Diljit Dosanjh", "AP Dhillon",
@@ -189,8 +190,20 @@ def main() -> int:
                 "p": round(float(np.exp(g.logp[a, j])), 4), "audio": round(float(g.audio[a, j]), 3),
                 "heldOut": held_out(a, b)}
 
+    def steps_for(full: list[int], rel: np.ndarray) -> list[dict]:
+        steps = []
+        for a, b in zip(full[:-1], full[1:]):
+            e = edge(a, b)
+            legal = [int(c) for c in g.nbr[a] if c >= 0 and c != b and c not in full
+                     and artist[c] not in {artist[x] for x in full[:full.index(b)]}][:3]
+            e["alts"] = [{"id": c, "count": int(T[a, c])} for c in legal]
+            e["rel"] = round(float(rel[b]), 3)
+            steps.append(e)
+            tracks.update([a, b, *legal])
+        return steps
+
     top, india = pick_seeds(ds, g, tail, has_audio, artist)
-    routes, tracks = [], set()
+    routes, tracks, more = [], set(), {}
     blocked = np.zeros(ds.n_items, dtype=bool)
     for group, pool, want in (("top", top, args.seeds), ("india", india, len(india))):
         kept = 0
@@ -199,7 +212,7 @@ def main() -> int:
                 break
             rel = seed_rel(W100, sd)
             blocked[sd] = True
-            grid, ok = {}, True
+            grid, pending, ok = {}, {}, True
             for lam in LAMS:
                 for gm in GAMMAS:
                     path = RT.find_route(g, sd, STEPS, blocked=blocked, artist=artist, tail=tail, rel=rel,
@@ -207,22 +220,26 @@ def main() -> int:
                     if len(path) < STEPS or ((lam, gm) == DEFAULT and not tail[path[-1]]):
                         ok = False
                         break
-                    full = [sd] + path
-                    steps = []
-                    for a, b in zip(full[:-1], full[1:]):
-                        e = edge(a, b)
-                        legal = [int(c) for c in g.nbr[a] if c >= 0 and c != b and c not in full
-                                 and artist[c] not in {artist[x] for x in full[:full.index(b)]}][:3]
-                        e["alts"] = [{"id": c, "count": int(T[a, c])} for c in legal]
-                        e["rel"] = round(float(rel[b]), 3)
-                        steps.append(e)
-                        tracks.update([a, b, *legal])
-                    grid[f"{lam:g}|{gm:g}"] = steps
+                    key = f"{lam:g}|{gm:g}"
+                    grid[key] = steps_for([sd] + path, rel)
+                    # other ways down: the same search with every stop of the earlier routes blocked
+                    used, alts = list(path), []
+                    for _ in range(MORE):
+                        blocked[used] = True
+                        alt = RT.find_route(g, sd, STEPS, blocked=blocked, artist=artist, tail=tail, rel=rel,
+                                            gamma=gm, lam=lam, beam=10)
+                        blocked[used] = False
+                        if len(alt) < STEPS:
+                            break
+                        alts.append(alt)
+                        used += alt
+                    pending[key] = alts
                 if not ok:
                     break
             blocked[sd] = False
             if not ok:
                 continue
+            more[str(sd)] = {k: [steps_for([sd] + a, rel) for a in v] for k, v in pending.items() if v}
             w = W15[sd]
             o = w.indices[np.argsort(-w.data)][:5]
             tracks.update(o.tolist() + [sd])
@@ -253,6 +270,7 @@ def main() -> int:
             "trainTransitions": int(T.sum())}
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / "routes.json").write_text(json.dumps({"meta": meta, "routes": routes}, separators=(",", ":")))
+    (OUT / "routes-more.json").write_text(json.dumps(more, separators=(",", ":")))
     old = OUT / "tracks.json"
     if old.exists():                       # keep previews already matched
         prev = json.loads(old.read_text())

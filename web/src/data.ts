@@ -131,6 +131,19 @@ export function routeFor(r: SeedRoutes, lam: number, gamma: number): Step[] {
   return steps;
 }
 
+/** Other ways down from each seed: seed → grid key → up to two routes, each sharing no stop with
+ *  the routes before it. Loaded after the page (routes-more.json). */
+export type More = Record<string, Record<string, Step[][]>>;
+
+/** How many routes a seed has at a setting: the main one plus its alternatives. */
+export const routeCount = (r: SeedRoutes, lam: number, gamma: number, more: More | null) =>
+  1 + (more?.[r.seed]?.[gridKey(lam, gamma)]?.length ?? 0);
+
+/** Route `alt` (0 = the main one) at a setting; falls back to the main route if that one isn't there. */
+export function routeAt(r: SeedRoutes, lam: number, gamma: number, alt: number, more: More | null): Step[] {
+  return (alt > 0 && more?.[r.seed]?.[gridKey(lam, gamma)]?.[alt - 1]) || routeFor(r, lam, gamma);
+}
+
 /** Track ids along a route, seed first. */
 export const stops = (r: SeedRoutes, steps: Step[]) => [r.seed, ...steps.map((s) => s.to)];
 
@@ -202,23 +215,31 @@ export function featured(routes: SeedRoutes[], tracks: Tracks, meta: RouteMeta):
   return (known.length ? known : routes).reduce((best, r) => (score(r) > score(best) ? r : best));
 }
 
-/** Routes the hash encodes: #/route/<seed>?l=<lam>&g=<gamma>, #/lab, #/lab/<section>. */
+/** Routes the hash encodes: #/route/<seed>?l=<lam>&g=<gamma>&r=<alt>, #/lab, #/lab/<section>, #/about. */
 export type View =
-  | { name: "route"; seed: number | null; lam: number | null; gamma: number | null }
-  | { name: "lab"; section: string | null };
+  | { name: "route"; seed: number | null; lam: number | null; gamma: number | null; alt: number }
+  | { name: "lab"; section: string | null }
+  | { name: "about" };
 
 export function parseHash(hash: string): View {
   const h = hash.replace(/^#\/?/, "");
   const [path, query = ""] = h.split("?");
   const parts = path.split("/").filter(Boolean);
   if (parts[0] === "lab") return { name: "lab", section: parts[1] ?? null };
+  if (parts[0] === "about") return { name: "about" };
   const q = new URLSearchParams(query);
   const num = (v: string | null | undefined) => (v != null && v !== "" && Number.isFinite(Number(v)) ? Number(v) : null);
-  return { name: "route", seed: num(parts[0] === "route" ? parts[1] : null), lam: num(q.get("l")), gamma: num(q.get("g")) };
+  const alt = num(q.get("r"));
+  return { name: "route", seed: num(parts[0] === "route" ? parts[1] : null), lam: num(q.get("l")), gamma: num(q.get("g")),
+    alt: alt != null && alt >= 1 ? Math.floor(alt) - 1 : 0 };
 }
 
-export function routeHash(seed: number, lam: number, gamma: number, meta: RouteMeta): string {
+/** The hash for a route; `alt` is 0-based here and 1-based in the URL (r=2 is the second route). */
+export function routeHash(seed: number, lam: number, gamma: number, meta: RouteMeta, alt = 0): string {
   const [dl, dg] = meta.default;
-  const q = lam === dl && gamma === dg ? "" : `?l=${lam}&g=${gamma}`;
-  return `#/route/${seed}${q}`;
+  const q = new URLSearchParams();
+  if (lam !== dl || gamma !== dg) { q.set("l", String(lam)); q.set("g", String(gamma)); }
+  if (alt > 0) q.set("r", String(alt + 1));
+  const qs = q.toString();
+  return `#/route/${seed}${qs ? `?${qs}` : ""}`;
 }

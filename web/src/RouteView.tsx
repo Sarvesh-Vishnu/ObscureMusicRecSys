@@ -1,21 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { featured, median, routeFor, routeHash, searchSeeds, stops as stopIds, summarise, type RoutesFile, type SeedRoutes, type Step, type Track, type Tracks } from "./data";
+import { featured, median, routeAt, routeCount, routeFor, routeHash, searchSeeds, stops as stopIds, summarise, type More, type RoutesFile, type SeedRoutes, type Step, type Track, type Tracks } from "./data";
 import { fold, int, plural, reach, soundChange, spell, stepEvidence, testWindow, windowDays } from "./format";
 import { Icon } from "./icons";
-import { usePlayer } from "./player";
+import { SAMPLES, usePlayer } from "./player";
 import { RouteFigure } from "./RouteFigure";
 
 const SMOOTH = ["Off", "Some", "Strong"];
 const PULL = ["None", "Some", "Strong"];
 
-export function RouteView({ data, tracks, seed, lam, gamma }: {
-  data: RoutesFile; tracks: Tracks; seed: number | null; lam: number | null; gamma: number | null;
+export function RouteView({ data, tracks, more, seed, lam, gamma, alt }: {
+  data: RoutesFile; tracks: Tracks; more: More | null; seed: number | null; lam: number | null; gamma: number | null; alt: number;
 }) {
   const { meta, routes } = data;
   const r = useMemo(() => routes.find((x) => x.seed === seed) ?? featured(routes, tracks, meta), [routes, seed, tracks, meta]);
   const L = lam != null && meta.lams.includes(lam) ? lam : meta.default[0];
   const G = gamma != null && meta.gammas.includes(gamma) ? gamma : meta.default[1];
-  const steps = routeFor(r, L, G);
+  const nRoutes = routeCount(r, L, G, more);
+  const A = Math.min(alt, nRoutes - 1);
+  const steps = routeAt(r, L, G, A, more);
   const ids = stopIds(r, steps);
   const stopTracks = ids.map((i) => tracks[i]);
   const sum = summarise(r, steps, tracks);
@@ -26,10 +28,29 @@ export function RouteView({ data, tracks, seed, lam, gamma }: {
   useEffect(() => { setSelected(1); }, [r.seed]);
   useEffect(() => { document.title = `${seedT.title} — Obscure`; }, [seedT.title]);
 
-  const go = (s: number, l: number, g: number) => { location.hash = routeHash(s, l, g, meta); };
   const playable = ids.filter((i) => tracks[i].preview);
   const routePlaying = player.queue.length > 1 && player.queue.every((q) => ids.includes(q));
   const nowIdx = player.current != null ? ids.indexOf(player.current) : -1;
+  /** Show another route; if this route is playing, the music follows to the same step of the new one. */
+  const go = (s: number, l: number, g: number, a = 0) => {
+    if (s === r.seed && routePlaying && player.playing) {
+      const next = stopIds(r, routeAt(r, l, g, a, more));
+      player.playQueue(next, Math.max(0, nowIdx));
+    }
+    location.hash = routeHash(s, l, g, meta, a);
+  };
+  /** A seed from the list: show its route without moving the page; if music is playing, play the new route. */
+  const pick = (s: number, play: boolean) => {
+    const to = routes.find((x) => x.seed === s);
+    if (to && (play || player.playing)) player.playQueue(stopIds(to, routeFor(to, L, G)), 0);
+    location.hash = routeHash(s, L, G, meta);
+  };
+  /** A stop on the figure: select it and play the route from there (or pause, if it's the one playing). */
+  const fromStop = (i: number) => {
+    setSelected(i);
+    if (ids[i] === player.current && routePlaying) player.toggle();
+    else player.playQueue(ids, i);
+  };
   const obTracks = r.obvious.map((i) => tracks[i]);
   const obHead = obTracks.filter((t) => !t.tail).length;
 
@@ -63,6 +84,14 @@ export function RouteView({ data, tracks, seed, lam, gamma }: {
               Start from another song
             </a>
           </div>
+          <fieldset className="sample">
+            <legend>Listen to each song for</legend>
+            <div className="seg sm">
+              {SAMPLES.map((v) => (
+                <label key={v}><input type="radio" name="sample" checked={player.sample === v} onChange={() => player.setSample(v)} />{v} s</label>
+              ))}
+            </div>
+          </fieldset>
           {playable.length > 0 && playable.length < ids.length && (
             <p className="note playable">
               {playable.length} of {ids.length} songs have a preview; the route plays those and skips the rest.
@@ -73,7 +102,7 @@ export function RouteView({ data, tracks, seed, lam, gamma }: {
 
         <div className="a-figure">
           <figure className="figure">
-            <RouteFigure stops={stopTracks} meta={meta} selected={selected} onSelect={setSelected} label={figLabel}
+            <RouteFigure stops={stopTracks} meta={meta} selected={selected} onSelect={fromStop} label={figLabel}
               now={nowIdx >= 0 ? nowIdx : null} travelling={routePlaying} obvious={obTracks} />
           </figure>
           <p className="figcaption" aria-live="polite">
@@ -109,6 +138,18 @@ export function RouteView({ data, tracks, seed, lam, gamma }: {
             </div>
             <p>Keeps the route near songs that share listeners with the seed. Strong pull often never reaches the long tail.</p>
           </fieldset>
+          {nRoutes > 1 && (
+            <fieldset className="dial">
+              <legend>Route <span className="mono">{A + 1} of {nRoutes}</span></legend>
+              <div className="seg" style={{ gridTemplateColumns: `repeat(${nRoutes}, 1fr)` }}>
+                {Array.from({ length: nRoutes }, (_, k) => (
+                  <label key={k}><input type="radio" name="alt" checked={k === A} onChange={() => go(r.seed, L, G, k)} />
+                    {["Best", "2nd", "3rd"][k] ?? `${k + 1}th`}</label>
+                ))}
+              </div>
+              <p>{spell(nRoutes).replace(/^\w/, (c) => c.toUpperCase())} routes from this song that share no stop. If one misses, try another.</p>
+            </fieldset>
+          )}
         </section>
 
         <section className="a-stops" aria-labelledby="stops-h">
@@ -124,7 +165,7 @@ export function RouteView({ data, tracks, seed, lam, gamma }: {
         </section>
 
         <Obvious r={r} tracks={tracks} steps={steps} />
-        <Picker routes={routes} tracks={tracks} current={r.seed} onPick={(s) => go(s, L, G)} defaults={meta.default} />
+        <Picker routes={routes} tracks={tracks} current={r.seed} onPick={pick} defaults={meta.default} />
       </div>
     </main>
   );
@@ -271,7 +312,7 @@ function Obvious({ r, tracks, steps }: { r: SeedRoutes; tracks: Tracks; steps: S
 }
 
 function Picker({ routes, tracks, current, onPick, defaults }: {
-  routes: SeedRoutes[]; tracks: Tracks; current: number; onPick: (s: number) => void; defaults: [number, number];
+  routes: SeedRoutes[]; tracks: Tracks; current: number; onPick: (s: number, play: boolean) => void; defaults: [number, number];
 }) {
   const [q, setQ] = useState("");
   const list = useMemo(() => searchSeeds(routes, tracks, q), [routes, tracks, q]);
@@ -296,12 +337,19 @@ function Picker({ routes, tracks, current, onPick, defaults }: {
               const ids = stopIds(x, routeFor(x, ...defaults));
               const heard = ids.filter((i) => tracks[i].preview).length;
               return (
-                <button key={x.seed} aria-current={x.seed === current} onClick={() => { onPick(x.seed); window.scrollTo({ top: 0 }); }}>
-                  <Cover t={t} size={32} className="art xs" />
-                  <span className="who">{t.title} <span>· {t.artist}</span>
-                    {heard < ids.length && <span className="pv"> · {heard} of {ids.length} playable</span>}</span>
-                  <span className="mono muted">{int(t.listeners)}</span>
-                </button>
+                <div key={x.seed} className="seed-row">
+                  <button className="seed-pick" aria-current={x.seed === current} onClick={() => onPick(x.seed, false)}>
+                    <Cover t={t} size={32} className="art xs" />
+                    <span className="who">{t.title} <span>· {t.artist}</span>
+                      {heard < ids.length && <span className="pv"> · {heard} of {ids.length} playable</span>}</span>
+                    <span className="mono muted">{int(t.listeners)}</span>
+                  </button>
+                  {heard > 0 && (
+                    <button className="icon-btn sm" onClick={() => onPick(x.seed, true)} aria-label={`Play the route from ${t.title} by ${t.artist}`}>
+                      <Icon name="play" size={15} />
+                    </button>
+                  )}
+                </div>
               );
             })}
           </div>

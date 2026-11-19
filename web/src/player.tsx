@@ -7,14 +7,19 @@ import { Icon } from "./icons";
 // nothing waits for a React render to start playback. Once an element has played from a
 // gesture, the browser lets it continue on its own.
 //
-// Crossfades: two elements take turns. Near the end of a preview the next one starts on the
-// other element and the two cross over FADE seconds (equal power); a skip fades the old one
-// out over CUT seconds instead of clicking off. Where the page cannot set volume (iOS Safari
-// ignores it) there is one element and previews follow each other with a cut, as before.
+// Crossfades: two elements take turns. Before the end of a sample the next one starts on the
+// other element and the two cross over with raised-cosine curves (slow start, slow finish, so
+// neither arrival nor departure is sudden). A skip crosses both ways in SKIP seconds. Where the
+// page cannot set volume (iOS Safari ignores it) there is one element and samples cut.
+//
+// Sample length: the listener picks how long each song plays (Apple's previews are 30 s).
 
-const FADE = 1.6;     // seconds of overlap when one preview hands on to the next
-const CUT = 0.25;     // seconds to fade out a preview the listener skipped away from
+export const SAMPLES = [10, 15, 30] as const;
+export type Sample = (typeof SAMPLES)[number];
+const fadeFor = (len: number) => (len >= 30 ? 4 : len >= 15 ? 3 : 2);   // seconds of overlap
+const SKIP = 0.7;     // seconds to cross when the listener skips or picks another song
 const STEP = 40;      // ms between volume steps
+const KEY = "obscure.sample";
 const SILENT = "data:audio/wav;base64,UklGRnQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YVAAAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgA==";
 
 interface PlayerState {
@@ -23,6 +28,9 @@ interface PlayerState {
   playing: boolean;
   current: number | null;
   failed: number | null;    // the last track whose preview would not load
+  sample: Sample;
+  setSample: (s: Sample) => void;
+  /** Play ids from ids[start]. If that song is already playing, it carries on and only the queue changes. */
   playQueue: (ids: number[], start?: number) => void;
   toggle: (id?: number) => void;
   next: () => void;
@@ -43,20 +51,35 @@ function volumeWorks(): boolean {
   return t.volume === 0.5;
 }
 
+function savedSample(): Sample {
+  try {
+    const v = Number(localStorage.getItem(KEY));
+    return (SAMPLES as readonly number[]).includes(v) ? (v as Sample) : 30;
+  } catch { return 30; }
+}
+
 export function PlayerProvider({ tracks, children }: { tracks: Tracks; children: ReactNode }) {
   const els = useRef<HTMLAudioElement[]>([]);
   const cur = useRef(0);                                   // which element is the one we hear
   const blessed = useRef([false, false]);                  // played once from a gesture
   const canFade = useRef<boolean | null>(null);
   const fade = useRef<number | null>(null);                // running volume interval
-  const handing = useRef(false);                           // this preview has started handing on
+  const handing = useRef(false);                           // this sample has started handing on
   const q = useRef<{ ids: number[]; i: number }>({ ids: [], i: 0 });
   const [queue, setQueue] = useState<number[]>([]);
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [failed, setFailed] = useState<number | null>(null);
+  const [sample, setSampleState] = useState<Sample>(savedSample);
+  const len = useRef<Sample>(sample);
   const current = queue.length ? queue[index] : null;
+
+  const setSample = useCallback((s: Sample) => {
+    len.current = s;
+    setSampleState(s);
+    try { localStorage.setItem(KEY, String(s)); } catch { /* private mode: keep it for this visit */ }
+  }, []);
 
   const pair = () => {
     if (!els.current.length) {
@@ -66,6 +89,8 @@ export function PlayerProvider({ tracks, children }: { tracks: Tracks; children:
     return els.current;
   };
   const el = () => pair()[cur.current];
+  /** Where this sample ends: the listener's length, or the preview's end if shorter. */
+  const endOf = (a: HTMLAudioElement) => Math.min(a.duration || Infinity, len.current);
 
   /** Stop any crossover now: the element we hear at full volume, the other silent. */
   const settle = () => {
@@ -75,14 +100,15 @@ export function PlayerProvider({ tracks, children }: { tracks: Tracks; children:
     if (!b.paused) b.pause();
   };
 
-  /** Fade `out` down and `inn` up over `secs` (equal power); `inn` may be null. */
+  /** Fade `out` down and `inn` up over `secs` with raised-cosine curves; `inn` may be null. */
   const cross = (out: HTMLAudioElement, inn: HTMLAudioElement | null, secs: number) => {
     if (fade.current != null) clearInterval(fade.current);
     const v0 = out.volume, t0 = performance.now();
     fade.current = window.setInterval(() => {
       const k = Math.min(1, (performance.now() - t0) / (secs * 1000));
-      out.volume = v0 * Math.cos((k * Math.PI) / 2);
-      if (inn) inn.volume = Math.sin((k * Math.PI) / 2);
+      const up = (1 - Math.cos(k * Math.PI)) / 2;          // 0 → 1, flat at both ends
+      out.volume = v0 * (1 - up);
+      if (inn) inn.volume = up;
       if (k >= 1) {
         clearInterval(fade.current!); fade.current = null;
         out.pause();
@@ -104,7 +130,7 @@ export function PlayerProvider({ tracks, children }: { tracks: Tracks; children:
     setProgress(0);
     handing.current = false;
 
-    if (!canFade.current) {                                 // one element, cut from one preview to the next
+    if (!canFade.current) {                                 // one element, cut from one sample to the next
       const a = els2[0];
       a.src = url;
       a.play().catch((e: DOMException) => {
@@ -117,8 +143,9 @@ export function PlayerProvider({ tracks, children }: { tracks: Tracks; children:
     const from = cur.current, to = 1 - from;
     const a = els2[from], b = els2[to];
     if (fade.current != null) { clearInterval(fade.current); fade.current = null; }
+    const crossing = !a.paused && blessed.current[from];
     b.src = url;
-    b.volume = how === "hand-on" ? 0 : 1;
+    b.volume = crossing ? 0 : 1;
     cur.current = to;
     const p = b.play();
     blessed.current[to] = true;
@@ -126,8 +153,8 @@ export function PlayerProvider({ tracks, children }: { tracks: Tracks; children:
       a.src = SILENT;
       a.play().then(() => a.pause()).catch(() => {});
       blessed.current[from] = true;
-    } else if (!a.paused) {
-      cross(a, how === "hand-on" ? b : null, how === "hand-on" ? FADE : CUT);
+    } else if (crossing) {
+      cross(a, b, how === "hand-on" ? fadeFor(len.current) : SKIP);
     }
     p.catch((e: DOMException) => {
       if (e?.name === "AbortError") return;
@@ -142,7 +169,7 @@ export function PlayerProvider({ tracks, children }: { tracks: Tracks; children:
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tracks]);
 
-  /** A hand-on was refused: keep hearing the old element and let its end start the next preview. */
+  /** A hand-on was refused: keep hearing the old element and let its end start the next sample. */
   const settleBack = (from: number, before: { ids: number[]; i: number }) => {
     if (fade.current != null) { clearInterval(fade.current); fade.current = null; }
     canFade.current = false;
@@ -156,18 +183,27 @@ export function PlayerProvider({ tracks, children }: { tracks: Tracks; children:
     handing.current = true;                                 // the "ended" event takes it from here
   };
 
-  // element events: progress, state, the next preview, failures. Only the element we hear counts.
+  // element events: progress, state, the next sample, failures. Only the element we hear counts.
   useEffect(() => {
     const [e0, e1] = pair();
     const mine = (e: Event) => e.target === el();
     const onTime = (e: Event) => {
       if (!mine(e)) return;
       const a = el();
-      setProgress(a.duration ? a.currentTime / a.duration : 0);
+      const end = endOf(a);
+      setProgress(Number.isFinite(end) && end > 0 ? Math.min(1, a.currentTime / end) : 0);
+      if (handing.current || !Number.isFinite(end)) return;
       const { ids, i } = q.current;
-      if (canFade.current && !handing.current && a.duration && a.duration - a.currentTime <= FADE && i + 1 < ids.length) {
+      const more = i + 1 < ids.length;
+      if (canFade.current) {
+        if (end - a.currentTime > fadeFor(len.current)) return;
         handing.current = true;
-        start(ids, i + 1, "hand-on");
+        if (more) start(ids, i + 1, "hand-on");
+        else if (end < a.duration) cross(a, null, fadeFor(len.current));   // last song: fade out at the sample's end
+      } else if (end < a.duration && a.currentTime >= end) {               // no fades: cut at the sample's end
+        handing.current = true;
+        if (more) start(ids, i + 1);
+        else a.pause();
       }
     };
     const onPlay = (e: Event) => { if (mine(e)) setPlaying(true); };
@@ -193,9 +229,20 @@ export function PlayerProvider({ tracks, children }: { tracks: Tracks; children:
   useEffect(() => () => { for (const a of els.current) a.pause(); }, []);
 
   const playQueue = useCallback((ids: number[], from = 0) => {
-    const playable = ids.filter((id) => tracks[id]?.preview?.url);
+    const has = (id: number) => !!tracks[id]?.preview?.url;
+    const playable = ids.filter(has);
     if (!playable.length) return;
-    start(playable, Math.max(0, playable.indexOf(ids[from])));
+    const first = ids.slice(from).find(has) ?? playable[0];   // a stop with no preview plays the next one that has one
+    const k = playable.indexOf(first);
+    const { ids: qi, i } = q.current;
+    if (playable[k] === qi[i] && els.current.length && !el().paused) {   // already playing it: just follow the new route
+      q.current = { ids: playable, i: k };
+      setQueue(playable);
+      setIndex(k);
+      return;
+    }
+    start(playable, k);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [start, tracks]);
 
   const toggle = useCallback((id?: number) => {
@@ -203,8 +250,10 @@ export function PlayerProvider({ tracks, children }: { tracks: Tracks; children:
     if (current == null) return;
     settle();
     const a = el();
-    if (a.paused) a.play().catch(() => setPlaying(false));
-    else a.pause();
+    if (a.paused) {
+      if (a.currentTime >= endOf(a) - 0.2) { a.currentTime = 0; handing.current = false; }   // sample finished: from the top
+      a.play().catch(() => setPlaying(false));
+    } else a.pause();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current, start]);
 
@@ -218,6 +267,7 @@ export function PlayerProvider({ tracks, children }: { tracks: Tracks; children:
     const { ids, i } = q.current;
     if (a.currentTime > 3 || i === 0) { settle(); a.currentTime = 0; handing.current = false; return; }
     start(ids, i - 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [start]);
 
   // the operating system's media controls: lock screen, headset and keyboard media keys
@@ -226,7 +276,7 @@ export function PlayerProvider({ tracks, children }: { tracks: Tracks; children:
     if (!ms) return;
     const t = current != null ? tracks[current] : null;
     ms.metadata = t && typeof MediaMetadata !== "undefined"
-      ? new MediaMetadata({ title: t.title, artist: t.artist, album: "Obscure · 30-second preview",
+      ? new MediaMetadata({ title: t.title, artist: t.artist, album: "Obscure · preview",
           artwork: t.preview?.art ? [{ src: t.preview.art, sizes: "300x300", type: "image/jpeg" }] : [] })
       : null;
     const set = (k: MediaSessionAction, f: (() => void) | null) => { try { ms.setActionHandler(k, f); } catch { /* unsupported */ } };
@@ -240,8 +290,8 @@ export function PlayerProvider({ tracks, children }: { tracks: Tracks; children:
     document.body.classList.toggle("has-bar", current != null);
   }, [current]);
 
-  const value = useMemo(() => ({ queue, index, playing, current, failed, playQueue, toggle, next, prev }),
-    [queue, index, playing, current, failed, playQueue, toggle, next, prev]);
+  const value = useMemo(() => ({ queue, index, playing, current, failed, sample, setSample, playQueue, toggle, next, prev }),
+    [queue, index, playing, current, failed, sample, setSample, playQueue, toggle, next, prev]);
 
   return (
     <Ctx.Provider value={value}>
@@ -269,7 +319,7 @@ function PlayerBar({ tracks, progress }: { tracks: Tracks; progress: number }) {
           </span>
         </div>
         <div className="ctl">
-          <a className="credit" href={p.link} target="_blank" rel="noreferrer">30-second preview · Apple Music ↗</a>
+          <a className="credit" href={p.link} target="_blank" rel="noreferrer">Preview · Apple Music ↗</a>
           {queue.length > 1 && (
             <button className="icon-btn" onClick={prev} aria-label="Previous">
               <Icon name="prev" />

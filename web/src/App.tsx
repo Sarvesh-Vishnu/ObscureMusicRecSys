@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { parseHash, type Lab, type RoutesFile, type Tracks, type View } from "./data";
+import { AboutView } from "./AboutView";
+import { parseHash, type Lab, type More, type RoutesFile, type Tracks, type View } from "./data";
 import { Mark } from "./icons";
 import { LabView } from "./LabView";
 import { PlayerProvider } from "./player";
@@ -7,12 +8,13 @@ import { RouteView } from "./RouteView";
 
 interface Loaded { routes: RoutesFile; tracks: Tracks; lab: Lab }
 
+const get = async <T,>(f: string): Promise<T> => {
+  const r = await fetch(`${import.meta.env.BASE_URL}data/${f}`);
+  if (!r.ok) throw new Error(`${f}: ${r.status}`);
+  return r.json() as Promise<T>;
+};
+
 async function load(): Promise<Loaded> {
-  const get = async <T,>(f: string): Promise<T> => {
-    const r = await fetch(`${import.meta.env.BASE_URL}data/${f}`);
-    if (!r.ok) throw new Error(`${f}: ${r.status}`);
-    return r.json() as Promise<T>;
-  };
   const [routes, tracks, lab] = await Promise.all([get<RoutesFile>("routes.json"), get<Tracks>("tracks.json"), get<Lab>("lab.json")]);
   return { routes, tracks, lab };
 }
@@ -31,7 +33,10 @@ export function App() {
   const [data, setData] = useState<Loaded | null>(null);
   const [error, setError] = useState<string | null>(null);
   const view = useHashView();
+  const [more, setMore] = useState<More | null>(null);
   useEffect(() => { load().then(setData, (e) => setError(String(e))); }, []);
+  // the other ways down are only needed once someone asks for one, so they load after the page
+  useEffect(() => { if (data) get<More>("routes-more.json").then(setMore, () => setMore(null)); }, [data]);
 
   return (
     <>
@@ -42,6 +47,7 @@ export function App() {
           <nav className="nav" aria-label="Views">
             <a href="#/" aria-current={view.name === "route" ? "page" : undefined}>Route</a>
             <a href="#/lab" aria-current={view.name === "lab" ? "page" : undefined}>Lab</a>
+            <a href="#/about" aria-current={view.name === "about" ? "page" : undefined}>About</a>
             <a href="https://github.com/Sarvesh-Vishnu/ObscureMusicRecSys">Code ↗</a>
           </nav>
         </div>
@@ -51,9 +57,10 @@ export function App() {
         {!data && !error && <div className="wrap loading" aria-live="polite">Loading routes…</div>}
         {data && (
           <PlayerProvider tracks={data.tracks}>
-            {view.name === "route"
-              ? <RouteView data={data.routes} tracks={data.tracks} seed={view.seed} lam={view.lam} gamma={view.gamma} />
-              : <LabView lab={data.lab} routes={data.routes} tracks={data.tracks} section={view.section} />}
+            {view.name === "route" && <RouteView data={data.routes} tracks={data.tracks} more={more}
+              seed={view.seed} lam={view.lam} gamma={view.gamma} alt={view.alt} />}
+            {view.name === "lab" && <LabView lab={data.lab} routes={data.routes} tracks={data.tracks} section={view.section} />}
+            {view.name === "about" && <AboutView routes={data.routes} tracks={data.tracks} lab={data.lab} />}
             <Footer />
           </PlayerProvider>
         )}

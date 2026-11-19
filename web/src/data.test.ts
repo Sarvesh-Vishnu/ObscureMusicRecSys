@@ -1,12 +1,13 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { featured, leadArtist, median, parseHash, reachY, routeFor, routeHash, searchSeeds, stops, summarise, type Lab, type RoutesFile, type Tracks } from "./data";
+import { featured, leadArtist, median, parseHash, reachY, routeAt, routeCount, routeFor, routeHash, searchSeeds, stops, summarise, type Lab, type More, type RoutesFile, type Tracks } from "./data";
 import { fold, pct, stepEvidence, testWindow, windowDays } from "./format";
 
 const read = <T,>(f: string): T => JSON.parse(readFileSync(new URL(`../public/data/${f}`, import.meta.url), "utf8")) as T;
 const data = read<RoutesFile>("routes.json");
 const tracks = read<Tracks>("tracks.json");
 const lab = read<Lab>("lab.json");
+const more = read<More>("routes-more.json");
 const { meta } = data;
 
 describe("exported routes keep the benchmark's rules", () => {
@@ -25,6 +26,33 @@ describe("exported routes keep the benchmark's rules", () => {
         const artists = ids.map((i) => leadArtist(tracks[i].artist));
         expect(new Set(artists).size).toBe(artists.length);
       }
+  });
+
+  it("offers other routes that keep the same rules and share no stop with the ones before", () => {
+    let checked = 0;
+    for (const r of data.routes)
+      for (const l of meta.lams)
+        for (const g of meta.gammas) {
+          const n = routeCount(r, l, g, more);
+          const seen = new Set<number>();
+          for (let a = 0; a < n; a++) {
+            const steps = routeAt(r, l, g, a, more);
+            expect(steps).toHaveLength(meta.steps);
+            const ids = stops(r, steps);
+            expect(new Set(ids).size).toBe(ids.length);
+            const artists = ids.map((i) => leadArtist(tracks[i].artist));
+            expect(new Set(artists).size).toBe(artists.length);
+            for (const i of ids.slice(1)) { expect(seen.has(i)).toBe(false); seen.add(i); }
+            checked += a > 0 ? 1 : 0;
+          }
+        }
+    expect(checked).toBeGreaterThan(0);
+  });
+
+  it("falls back to the main route when an alternative is missing", () => {
+    const r = data.routes[0];
+    expect(routeAt(r, ...meta.default, 9, more)).toBe(routeFor(r, ...meta.default));
+    expect(routeAt(r, ...meta.default, 1, null)).toBe(routeFor(r, ...meta.default));
   });
 
   it("ends in the long tail at the default setting", () => {
@@ -63,10 +91,14 @@ describe("exported routes keep the benchmark's rules", () => {
 describe("helpers", () => {
   it("parses and builds hashes", () => {
     expect(parseHash("#/lab/cold")).toEqual({ name: "lab", section: "cold" });
-    expect(parseHash("#/route/42?l=2&g=1")).toEqual({ name: "route", seed: 42, lam: 2, gamma: 1 });
-    expect(parseHash("")).toEqual({ name: "route", seed: null, lam: null, gamma: null });
+    expect(parseHash("#/route/42?l=2&g=1")).toEqual({ name: "route", seed: 42, lam: 2, gamma: 1, alt: 0 });
+    expect(parseHash("#/route/42?r=3")).toEqual({ name: "route", seed: 42, lam: null, gamma: null, alt: 2 });
+    expect(parseHash("")).toEqual({ name: "route", seed: null, lam: null, gamma: null, alt: 0 });
+    expect(parseHash("#/about")).toEqual({ name: "about" });
     expect(routeHash(42, meta.default[0], meta.default[1], meta)).toBe("#/route/42");
     expect(routeHash(42, 2, 1, meta)).toBe("#/route/42?l=2&g=1");
+    expect(routeHash(42, meta.default[0], meta.default[1], meta, 1)).toBe("#/route/42?r=2");
+    expect(parseHash(routeHash(42, 2, 1, meta, 2))).toEqual({ name: "route", seed: 42, lam: 2, gamma: 1, alt: 2 });
   });
 
   it("reduces a credit to its lead artist", () => {

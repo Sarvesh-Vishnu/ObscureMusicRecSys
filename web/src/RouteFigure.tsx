@@ -64,7 +64,7 @@ export function RouteFigure({ stops, meta, selected, onSelect, label, now, trave
 
   return (
     <div ref={box}>
-    <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} role="img" aria-label={label}>
+    <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} role="group" aria-label={label}>
       <rect className="tailzone" x={L} y={yThr} width={W - R - L} height={T + IH - yThr} />
       {TICKS.map((t) => {
         const y = T + reachY(t, meta) * IH;
@@ -97,10 +97,13 @@ export function RouteFigure({ stops, meta, selected, onSelect, label, now, trave
       <path className="line" d={path(0, cut)} />
       {cut < stops.length - 1 && <path className="line ahead" d={path(cut, stops.length - 1)} />}
       {stops.map((s, i) => (
-        <g key={i} onClick={() => onSelect(i)}>
+        <g key={i} className="node" role="button" tabIndex={0} onClick={() => onSelect(i)}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(i); } }}
+          aria-label={`${i === now && travelling ? "Pause" : "Play from"} ${i === 0 ? "the seed" : `step ${i}`}: ${s.title} by ${s.artist}, ${int(s.listeners)} listeners`}>
           <circle className="hit" cx={x(i)} cy={ys[i]} r={20}>
-            <title>{`${s.title} — ${s.artist}: ${int(s.listeners)} listeners`}</title>
+            <title>{`${s.title} — ${s.artist}: ${int(s.listeners)} listeners. Click to play from here.`}</title>
           </circle>
+          <circle className="focus" cx={x(i)} cy={ys[i]} r={15} />
           {i === selected && i !== now && <circle className="halo" cx={x(i)} cy={ys[i]} r={11} />}
           {i === now && <circle className="now" cx={x(i)} cy={ys[i]} r={11} />}
           <circle className={`stop${i === 0 ? " seed" : ""}${i === stops.length - 1 ? " end" : ""}`} cx={x(i)} cy={ys[i]} r={i === stops.length - 1 ? 6.5 : 5.5} />

@@ -173,6 +173,12 @@ def main() -> int:
         need.update(r["obvious"])
         for steps in r["grid"].values():
             need.update(s["to"] for s in steps)
+    more_file = DATA / "routes-more.json"
+    if more_file.exists():
+        for grid in json.loads(more_file.read_text()).values():
+            for alts in grid.values():
+                for steps in alts:
+                    need.update(s["to"] for s in steps)
     cache = json.loads(CACHE.read_text()) if CACHE.exists() else {}
     # re-check approximate matches (the rules may have tightened since they were cached)
     def stale(t: dict) -> bool:

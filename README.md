@@ -19,17 +19,21 @@ What offline data cannot answer is whether people enjoy where a route ends. That
 
 ## Web app: routes and the lab
 
-`web/` is a static site (Vite, React, TypeScript) with two views:
+`web/` is a static site (Vite, React, TypeScript) with three views:
 
 - **Route.** Pick one of 133 seed songs and see a route of five steps to a song almost nobody plays,
   drawn on a listeners axis so you can watch it leave the head. Each step shows how many training
   plays made that move, whether someone made it again after the cutoff, how the sound changed
   (AcousticBrainz tempo, key, danceability), and the other ways on. Two dials (smoothness λ, pull γ)
-  step through a precomputed grid; next to the route, the tuned ItemKNN's top five for contrast.
-  30-second previews come from Apple's iTunes Search API, matched by lead artist and title.
+  step through a precomputed grid, and a third picks between three routes from the same seed that
+  share no stop, so a route that misses has somewhere else to go. Next to the route, the tuned
+  ItemKNN's top five for contrast. Click any stop to play the route from there; previews come from
+  Apple's iTunes Search API (matched by lead artist and title), play for 10, 15 or 30 seconds each,
+  and crossfade.
 - **Lab.** The benchmark below as seven figures. Every number on the page is read from
   `results/phase*.json`; "tied" and "no measurable cost" are worded from whether a paired 95%
   interval spans zero.
+- **About.** What Obscure is for, and how it handles a route that misses.
 
 The browser does no modelling. Every route is computed offline by the same `find_route` the
 benchmark measured, on the phase-4 next-song graph. The app has no listener, so its pull is
@@ -37,8 +41,9 @@ closeness to the seed (two hops of ItemKNN), not to a listening history, and its
 "Korn feat. Skrillex" as Korn (the benchmark keys artists by credit).
 
 ```bash
-python scripts/export_web.py        # web/public/data/{routes,tracks,lab}.json (needs phase 2-4 caches)
+python scripts/export_web.py        # web/public/data/{routes,routes-more,tracks,lab}.json (needs phase 2-4 caches)
 python scripts/fetch_previews.py    # iTunes previews, ~20 lookups/min, cached in data/itunes_cache.json
+python scripts/fetch_previews.py --fallback   # retry misses through each artist's catalogue
 cd web && npm install && npm run dev   # http://localhost:5192
 npm test && npm run build              # vitest checks the exported routes keep the benchmark's rules
 ```

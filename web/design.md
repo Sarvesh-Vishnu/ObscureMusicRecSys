@@ -209,3 +209,36 @@ It ends with a link to the limits. Readers: a hiring manager who reads only the 
 **Considered and rejected.** Keeping the mono chapter strip beside the list (two tables of
 contents). Big stat tiles per finding (decorative, and the numbers need their comparison to mean
 anything). Copying the README's six findings verbatim (typed numbers; and the Lab has seven chapters).
+
+### 10.8 — Another route, sample length, play from a stop, About (2026-11-19)
+*Changes: §4 components (dials, route figure, player, seed picker); a third view. Amends 10.6 (fade lengths).*
+
+**Another route** (the user's pick for "a route can miss"). `export_web.py` runs the same
+benchmarked `find_route` again with every stop of the earlier routes blocked, twice: three routes
+per seed and setting that share no stop. They live in `routes-more.json`, loaded after the page, so
+first load is unchanged. A third dial, "Route: Best · 2nd · 3rd", appears once they load; the URL
+carries it (`r=2`). Every seed and setting got both alternatives; at the default setting 244 of 266
+alternatives end in the long tail (the rest say "still in the head" like any route).
+
+**The music follows the page.** Moving a dial or changing route while the route plays carries the
+music to the same step of the new route (the same song carries on uninterrupted). Picking a seed
+while anything plays plays the new route; picking never scrolls the page any more (it used to jump
+to the top), and each seed has its own play button.
+
+**Play from a stop.** Each stop on the figure is a button: click, tap or Enter plays the route from
+there (crossfading), and clicking the stop that's playing pauses it. The figure is now `role=group`
+with named buttons, not one `role=img`.
+
+**Sample length** 10 / 15 / 30 s (default 30, remembered per browser). Crossfades are longer and
+gentler than 10.6: 4 s at 30 s, 3 s at 15 s, 2 s at 10 s, on raised-cosine curves (flat at both
+ends) instead of equal power, because the user heard 10.6's 1.6 s as abrupt. Skips cross both ways
+in 0.7 s. The last song of a route fades out at the sample's end.
+
+**About** (`#/about`): what Obscure is for (the long tail, not sound-alikes), why the steps are
+real, how it handles a miss, how it's built. Copy is a draft in Claude's words for the author to
+edit; its numbers are computed, and it says the default routes all end in the tail because seeds
+without such a route were left out.
+
+**Considered and rejected.** Beam runners-up as alternatives (they share four of five stops).
+"Swap a stop" and "not for me" (offered; the user chose another route). Web Audio crossfades on iOS
+(still the 10.6 risk). Auto-scroll on seed pick (the user found it disorienting).
