@@ -161,6 +161,7 @@ describe("helpers", () => {
     expect(pct(0)).toBe("0%");
     expect(fold(59)).toBe("59× fewer listeners than the seed");
     expect(fold(1)).toBe("about as many listeners as the seed");
+    expect(fold(87.4, "Take On Me")).toBe("87× fewer listeners than Take On Me");
     expect(testWindow({ split: "2026-11-12", end: "2026-11-16" })).toBe("12–15 Nov");
     expect(windowDays({ split: "2026-11-12", end: "2026-11-16" })).toBe(4);
   });

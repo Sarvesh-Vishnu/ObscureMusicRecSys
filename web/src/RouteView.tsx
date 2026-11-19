@@ -51,6 +51,13 @@ export function RouteView({ data, tracks, more, seed, lam, gamma, alt }: {
     if (ids[i] === player.current && routePlaying) player.toggle();
     else player.playQueue(ids, i);
   };
+  /** After the route's last sample: try the next route from its first step, or hear this one again. */
+  const nextAlt = (A + 1) % nRoutes;
+  const tryNext = () => {
+    player.playQueue(stopIds(r, routeAt(r, L, G, nextAlt, more)), 1);
+    location.hash = routeHash(r.seed, L, G, meta, nextAlt);
+  };
+  const finished = player.ended && routePlaying && player.index === player.queue.length - 1;
   const obTracks = r.obvious.map((i) => tracks[i]);
   const obHead = obTracks.filter((t) => !t.tail).length;
 
@@ -103,7 +110,7 @@ export function RouteView({ data, tracks, more, seed, lam, gamma, alt }: {
         <div className="a-figure">
           <figure className="figure">
             <RouteFigure stops={stopTracks} meta={meta} selected={selected} onSelect={fromStop} label={figLabel}
-              now={nowIdx >= 0 ? nowIdx : null} travelling={routePlaying} obvious={obTracks} />
+              now={nowIdx >= 0 ? nowIdx : null} travelling={routePlaying} playing={player.playing} obvious={obTracks} />
           </figure>
           <p className="figcaption" aria-live="polite">
             {sum.endsInTail
@@ -164,10 +171,56 @@ export function RouteView({ data, tracks, more, seed, lam, gamma, alt }: {
         </ol>
         </section>
 
+        {finished && (
+          <EndCard key={`${r.seed}-${L}-${G}-${A}`} seed={seedT} end={tracks[ids[ids.length - 1]]} sum={sum}
+            next={nRoutes > 1 ? (nextAlt === 0 ? "Back to the best route" : `Try the ${["Best", "2nd", "3rd"][nextAlt] ?? `${nextAlt + 1}th`} route`) : null}
+            onNext={tryNext} onAgain={() => player.playQueue(ids, 0)}
+            onAnother={() => document.getElementById("seed-search")?.focus()} />
+        )}
+        <p className="sr-only" aria-live="polite">{finished ? `Route finished on ${tracks[ids[ids.length - 1]].title} by ${tracks[ids[ids.length - 1]].artist}.` : ""}</p>
         <Obvious r={r} tracks={tracks} steps={steps} />
         <Picker routes={routes} tracks={tracks} current={r.seed} onPick={pick} defaults={meta.default} />
       </div>
     </main>
+  );
+}
+
+/** Where the route ended, docked above the player once its last sample finishes. */
+function EndCard({ seed, end, sum, next, onNext, onAgain, onAnother }: {
+  seed: Track; end: Track; sum: ReturnType<typeof summarise>; next: string | null;
+  onNext: () => void; onAgain: () => void; onAnother: () => void;
+}) {
+  const [open, setOpen] = useState(true);
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    window.addEventListener("keydown", esc);
+    return () => window.removeEventListener("keydown", esc);
+  }, []);
+  if (!open) return null;
+  const mb = `https://musicbrainz.org/recording/${end.mbid}`;
+  return (
+    <aside className="endcard" aria-labelledby="end-h">
+      <div className="wrap">
+        <Cover t={end} size={64} className="art" />
+        <div className="end-text">
+          <h2 id="end-h" className="label">Where the route ended</h2>
+          <p className="t">{end.title} <span className="a">· {end.artist}</span></p>
+          <p className="f">
+            {int(end.listeners)} listeners, {sum.endsInTail ? fold(sum.fold, seed.title) : "still in the head"}.
+          </p>
+          <p className="links">
+            {end.preview && <><a href={end.preview.link} target="_blank" rel="noreferrer">Apple Music ↗</a><span aria-hidden="true"> · </span></>}
+            <a href={mb} target="_blank" rel="noreferrer">MusicBrainz ↗</a>
+          </p>
+        </div>
+        <div className="end-act">
+          {next && <button className="btn primary" onClick={onNext}><Icon name="play" />{next}</button>}
+          <button className="btn" onClick={onAgain}>Play again</button>
+          <button className="btn ghost" onClick={() => { setOpen(false); onAnother(); }}>Another song</button>
+        </div>
+        <button className="icon-btn end-x" onClick={() => setOpen(false)} aria-label="Close"><Icon name="close" size={16} /></button>
+      </div>
+    </aside>
   );
 }
 

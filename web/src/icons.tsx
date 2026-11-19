@@ -3,6 +3,7 @@ const P: Record<string, string> = {
   pause: "M5 3.5h3.5v13H5zM11.5 3.5H15v13h-3.5z",
   next: "M4 4l8 6-8 6zM13.5 4H16v12h-2.5z",
   prev: "M16 4l-8 6 8 6zM4 4h2.5v12H4z",
+  close: "M5.1 4L10 8.9 14.9 4 16 5.1 11.1 10 16 14.9 14.9 16 10 11.1 5.1 16 4 14.9 8.9 10 4 5.1z",
 };
 
 export function Icon({ name, size = 18 }: { name: keyof typeof P | string; size?: number }) {

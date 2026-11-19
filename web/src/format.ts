@@ -49,10 +49,10 @@ export function reach(t: Track, meta: Pick<RouteMeta, "nItems">): string {
   return `${int(t.listeners)} listener${t.listeners === 1 ? "" : "s"} · #${int(t.rank)} of ${int(meta.nItems)}`;
 }
 
-export function fold(x: number): string {
-  if (x >= 1.5) return `${x >= 10 ? int(x) : x.toFixed(1)}× fewer listeners than the seed`;
-  if (x <= 1 / 1.5) return `${(1 / x).toFixed(1)}× more listeners than the seed`;
-  return "about as many listeners as the seed";
+export function fold(x: number, than = "the seed"): string {
+  if (x >= 1.5) return `${x >= 10 ? int(x) : x.toFixed(1)}× fewer listeners than ${than}`;
+  if (x <= 1 / 1.5) return `${(1 / x).toFixed(1)}× more listeners than ${than}`;
+  return `about as many listeners as ${than}`;
 }
 
 export const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;

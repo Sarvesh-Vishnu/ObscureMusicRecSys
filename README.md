@@ -29,7 +29,7 @@ What offline data cannot answer is whether people enjoy where a route ends. That
   share no stop, so a route that misses has somewhere else to go. Next to the route, the tuned
   ItemKNN's top five for contrast. Click any stop to play the route from there; previews come from
   Apple's iTunes Search API (matched by lead artist and title), play for 10, 15 or 30 seconds each,
-  and crossfade.
+  and crossfade. When a route finishes, a card shows where it ended and offers the next route.
 - **Lab.** The benchmark below as seven figures. Every number on the page is read from
   `results/phase*.json`; "tied" and "no measurable cost" are worded from whether a paired 95%
   interval spans zero.

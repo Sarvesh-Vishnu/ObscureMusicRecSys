@@ -38,9 +38,9 @@ const TICKS = [1000, 300, 100, 30, 10];
  * obvious: the standard recommender's picks, drawn in grey in a column of their own past
  * the last step, so where they sit compares directly with where the route ends.
  */
-export function RouteFigure({ stops, meta, selected, onSelect, label, now, travelling, obvious }: {
+export function RouteFigure({ stops, meta, selected, onSelect, label, now, travelling, playing = false, obvious }: {
   stops: Track[]; meta: RouteMeta; selected: number; onSelect: (i: number) => void; label: string;
-  now: number | null; travelling: boolean; obvious: Track[];
+  now: number | null; travelling: boolean; playing?: boolean; obvious: Track[];
 }) {
   const [box, W] = useWidth<HTMLDivElement>(720);
   const H = W < 520 ? 250 : 300;
@@ -99,7 +99,7 @@ export function RouteFigure({ stops, meta, selected, onSelect, label, now, trave
       {stops.map((s, i) => (
         <g key={i} className="node" role="button" tabIndex={0} onClick={() => onSelect(i)}
           onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(i); } }}
-          aria-label={`${i === now && travelling ? "Pause" : "Play from"} ${i === 0 ? "the seed" : `step ${i}`}: ${s.title} by ${s.artist}, ${int(s.listeners)} listeners`}>
+          aria-label={`${i === now && travelling && playing ? "Pause" : "Play from"} ${i === 0 ? "the seed" : `step ${i}`}: ${s.title} by ${s.artist}, ${int(s.listeners)} listeners`}>
           <circle className="hit" cx={x(i)} cy={ys[i]} r={20}>
             <title>{`${s.title} — ${s.artist}: ${int(s.listeners)} listeners. Click to play from here.`}</title>
           </circle>

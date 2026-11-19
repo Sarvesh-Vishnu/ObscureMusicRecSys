@@ -242,3 +242,29 @@ without such a route were left out.
 **Considered and rejected.** Beam runners-up as alternatives (they share four of five stops).
 "Swap a stop" and "not for me" (offered; the user chose another route). Web Audio crossfades on iOS
 (still the 10.6 risk). Auto-scroll on seed pick (the user found it disorienting).
+
+### 10.9 — The end card (2026-11-19)
+*Changes: §4 components (a new end card on the player). Unpublished until the author says.*
+
+When a route's last sample finishes, a card docks on the player: **where the route ended**
+(title, artist, cover), its listeners and how many times fewer than the seed (named), and links to
+Apple Music and MusicBrainz. Three ways on: **Try the 2nd route** (amber: it plays a route; it
+starts at step 1, since every route shares the seed you just heard; after the last route it reads
+"Back to the best route"), **Play again** (from the seed) and **Another song** (focuses the seed
+search). It closes with × or Escape, and goes away once anything plays.
+
+The player now knows when a queue has finished (`ended`): the last song's fade-out completing, its
+cut, or its `ended` event. A sample resumed past its end now stops at the end, instead of
+playing on to the end of the preview.
+
+On phones the card drops its cover (the bar just below shows the same one) and the buttons wrap
+under the text; it never scrolls sideways at 320. The finish is announced through a live region
+that is always mounted (one that mounts already filled is often not read). Figure stops now say
+"Pause" only while the music is actually playing.
+
+Also fixed: with "About" added, the top nav was 12px too wide at 320. It tightens below 360.
+
+**Considered and rejected.** Opening the card as a modal (it would interrupt someone reading the
+stops). Auto-playing the next route (a miss should cost one click, not happen to you). Repeating
+"k of 5 stops in the long tail" (the figure caption already says it). Moving focus to the card
+(the listener may be anywhere on the page; the live region tells a screen reader instead).

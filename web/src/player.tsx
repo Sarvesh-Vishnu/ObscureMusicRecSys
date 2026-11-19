@@ -28,6 +28,7 @@ interface PlayerState {
   playing: boolean;
   current: number | null;
   failed: number | null;    // the last track whose preview would not load
+  ended: boolean;           // the queue played to the end of its last sample
   sample: Sample;
   setSample: (s: Sample) => void;
   /** Play ids from ids[start]. If that song is already playing, it carries on and only the queue changes. */
@@ -71,6 +72,7 @@ export function PlayerProvider({ tracks, children }: { tracks: Tracks; children:
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [failed, setFailed] = useState<number | null>(null);
+  const [ended, setEnded] = useState(false);
   const [sample, setSampleState] = useState<Sample>(savedSample);
   const len = useRef<Sample>(sample);
   const current = queue.length ? queue[index] : null;
@@ -101,7 +103,7 @@ export function PlayerProvider({ tracks, children }: { tracks: Tracks; children:
   };
 
   /** Fade `out` down and `inn` up over `secs` with raised-cosine curves; `inn` may be null. */
-  const cross = (out: HTMLAudioElement, inn: HTMLAudioElement | null, secs: number) => {
+  const cross = (out: HTMLAudioElement, inn: HTMLAudioElement | null, secs: number, done?: () => void) => {
     if (fade.current != null) clearInterval(fade.current);
     const v0 = out.volume, t0 = performance.now();
     fade.current = window.setInterval(() => {
@@ -112,6 +114,7 @@ export function PlayerProvider({ tracks, children }: { tracks: Tracks; children:
       if (k >= 1) {
         clearInterval(fade.current!); fade.current = null;
         out.pause();
+        done?.();
       }
     }, STEP);
   };
@@ -127,6 +130,7 @@ export function PlayerProvider({ tracks, children }: { tracks: Tracks; children:
     setQueue(ids);
     setIndex(i);
     setFailed(null);
+    setEnded(false);
     setProgress(0);
     handing.current = false;
 
@@ -187,23 +191,25 @@ export function PlayerProvider({ tracks, children }: { tracks: Tracks; children:
   useEffect(() => {
     const [e0, e1] = pair();
     const mine = (e: Event) => e.target === el();
+    const finish = () => { handing.current = true; setEnded(true); };
     const onTime = (e: Event) => {
       if (!mine(e)) return;
       const a = el();
       const end = endOf(a);
       setProgress(Number.isFinite(end) && end > 0 ? Math.min(1, a.currentTime / end) : 0);
-      if (handing.current || !Number.isFinite(end)) return;
+      if (!Number.isFinite(end)) return;
       const { ids, i } = q.current;
       const more = i + 1 < ids.length;
+      if (!more && end < a.duration && a.currentTime >= end) { a.pause(); finish(); return; }   // past the last sample's end
+      if (handing.current) return;
       if (canFade.current) {
         if (end - a.currentTime > fadeFor(len.current)) return;
         handing.current = true;
         if (more) start(ids, i + 1, "hand-on");
-        else if (end < a.duration) cross(a, null, fadeFor(len.current));   // last song: fade out at the sample's end
+        else if (end < a.duration) cross(a, null, fadeFor(len.current), finish);   // last song: fade out at the sample's end
       } else if (end < a.duration && a.currentTime >= end) {               // no fades: cut at the sample's end
         handing.current = true;
         if (more) start(ids, i + 1);
-        else a.pause();
       }
     };
     const onPlay = (e: Event) => { if (mine(e)) setPlaying(true); };
@@ -212,6 +218,7 @@ export function PlayerProvider({ tracks, children }: { tracks: Tracks; children:
       if (!mine(e)) return;
       const { ids, i } = q.current;
       if (i + 1 < ids.length) start(ids, i + 1);
+      else finish();
     };
     const onError = (e: Event) => {
       if (!mine(e) || !el().getAttribute("src")) return;
@@ -252,6 +259,7 @@ export function PlayerProvider({ tracks, children }: { tracks: Tracks; children:
     const a = el();
     if (a.paused) {
       if (a.currentTime >= endOf(a) - 0.2) { a.currentTime = 0; handing.current = false; }   // sample finished: from the top
+      setEnded(false);
       a.play().catch(() => setPlaying(false));
     } else a.pause();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -290,8 +298,8 @@ export function PlayerProvider({ tracks, children }: { tracks: Tracks; children:
     document.body.classList.toggle("has-bar", current != null);
   }, [current]);
 
-  const value = useMemo(() => ({ queue, index, playing, current, failed, sample, setSample, playQueue, toggle, next, prev }),
-    [queue, index, playing, current, failed, sample, setSample, playQueue, toggle, next, prev]);
+  const value = useMemo(() => ({ queue, index, playing, current, failed, ended, sample, setSample, playQueue, toggle, next, prev }),
+    [queue, index, playing, current, failed, ended, sample, setSample, playQueue, toggle, next, prev]);
 
   return (
     <Ctx.Provider value={value}>
