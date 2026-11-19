@@ -195,3 +195,17 @@ checked without a device. Revisit after a real-device test.
 **Considered and rejected.** Web Audio everywhere (above). Longer crossfades (3 s+ eats a tenth of
 a 30-second preview, and the step being judged is the sound of the next song, not the blend).
 A setting to turn fades off (nobody asked; a skip is already near-instant).
+
+### 10.7 — The Lab opens with what it found (2026-11-18)
+*Changes: §4 components (Lab head); replaces the chapter strip.*
+
+Under the dataset facts, "What it found": one row per chapter, numbered, the chapter's title as the
+link and one sentence with its headline numbers. Titles come from one `TITLE` map shared with the
+chapters; every number and every comparative word ("tie", "cannot tell it from", "does as well") is
+computed from `lab.json` the same way the chapter computes it. A render test (`LabView.test.tsx`)
+fails if a finding loses its link target or its number, or if anything prints NaN or undefined.
+It ends with a link to the limits. Readers: a hiring manager who reads only the top of the page.
+
+**Considered and rejected.** Keeping the mono chapter strip beside the list (two tables of
+contents). Big stat tiles per finding (decorative, and the numbers need their comparison to mean
+anything). Copying the README's six findings verbatim (typed numbers; and the Lab has seven chapters).

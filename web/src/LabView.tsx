@@ -9,6 +9,17 @@ const ratio = (a: number, b: number) => (b > 0 ? `${(a / b).toFixed(1)}×` : "�
 const sp = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v * 100).toFixed(2)}`;
 const ci = (c: CI) => `${pct(c[0])} [${pct(c[1])}, ${pct(c[2])}]`;
 
+/** Chapter titles, shared by the chapters and the findings list at the top. */
+const TITLE = {
+  models: "Similar recall, very different reach",
+  rerank: "Buying reach with recall",
+  cold: "Sound alone barely finds anything",
+  next: "What people play next is its own signal",
+  routes: "As deep as a popularity penalty, on steps people take",
+  ope: "The policies worth trying are the hardest to judge from logs",
+  online: "Learning from each hit beats the base ranker; exploring adds nothing here",
+};
+
 function by<T extends { name: string }>(xs: T[], name: string): T {
   const x = xs.find((m) => m.name === name);
   if (!x) throw new Error(`missing result: ${name}`);
@@ -39,11 +50,8 @@ export function LabView({ lab, routes, tracks, section }: { lab: Lab; routes: Ro
           <div><dt>Listener–song pairs</dt><dd>{int(d.trainPairs)}</dd></div>
           <div><dt>Listeners scored</dt><dd>{int(d.evalUsers)}</dd></div>
         </dl>
-        <ul className="toc" aria-label="Sections">
-          {[["models", "1 Recommenders"], ["rerank", "2 Re-ranking"], ["cold", "3 Cold start"], ["next", "4 Next song"], ["routes", "5 Routes"], ...(lab.bandit ? [["ope", "6 Off-policy"], ["online", "7 Bandits"]] : []), ["limits", lab.bandit ? "8 Limits" : "6 Limits"]]
-            .map(([id, t]) => <li key={id}><a href={`#/lab/${id}`}>{t}</a></li>)}
-        </ul>
       </header>
+      <Findings lab={lab} />
       <Models lab={lab} />
       <Rerank lab={lab} />
       <Cold lab={lab} />
@@ -53,6 +61,62 @@ export function LabView({ lab, routes, tracks, section }: { lab: Lab; routes: Ro
       {lab.bandit && <Online b={lab.bandit} />}
       <Limits lab={lab} routes={routes} tracks={tracks} />
     </main>
+  );
+}
+
+/** One line per chapter, each built from the same results the chapter reads. */
+function Findings({ lab }: { lab: Lab }) {
+  const knn = by(lab.models, "ItemKNN"), als = by(lab.models, "ALS");
+  const base = by(lab.rerankers, "ItemKNN"), p25 = by(lab.rerankers, "PopPenalty β=0.25");
+  const rnd = by(lab.cold.models, "Random"), af = by(lab.cold.models, "Audio → factors"), cen = by(lab.cold.models, "Artist centroid");
+  const nk = by(lab.next, "ItemKNN neighbours"), tr = lab.next.find((x) => x.name.startsWith("Transition"))!;
+  const mp = by(lab.routes, "Route: most probable"), pop = by(lab.routes, "Top-20: PopPenalty β=0.5");
+  const items: [keyof typeof TITLE, React.ReactNode][] = [
+    ["models", <>ItemKNN and ALS {spansZero(lab.paired["ALS"].recall) ? "tie" : "differ"} on recall@20 ({pct(knn.recall[0])} and {pct(als.recall[0])}),
+      but ItemKNN finds {ratio(knn.tail[0], als.tail[0])} as many discoveries in the long tail.</>],
+    ["rerank", <>A mild popularity penalty gives up {pp(p25.recall[0], base.recall[0])} of recall for {pp(p25.tail[0], base.tail[0])} of
+      long-tail recall, {Math.round((p25.tail[0] / base.tail[0] - 1) * 100)}% more than the base.</>],
+    ["cold", <>For songs too rare for collaborative filtering, a model of their sound reaches {pct(af.recall[0])} recall@20
+      ({ratio(af.recall[0], rnd.recall[0])} random); the artist’s other songs reach {pct(cen.recall[0])}.</>],
+    ["next", <>Counting back-to-back listens finds the true next song {pct(tr.hit[0], 1)} of the time in the top 20, against
+      {" "}{pct(nk.hit[0], 1)} for co-listening similarity, and ranks it about {ratio(tr.mrr[0], nk.mrr[0])} higher.</>],
+    ["routes", <>{pct(mp.tail_share[0], 0)} of route stops are in the long tail ({pct(pop.tail_share[0], 0)} for a popularity-penalised
+      list), and {ratio(mp.realism[0], pop.realism[0])} as many of their steps were made again by real listeners.</>],
+  ];
+  const b = lab.bandit;
+  if (b) {
+    const rows = b.ope.filter((r) => r.n === 10_000);
+    const k = rows.find((r) => r.policy === "ItemKNN, top pick")!, t = rows.find((r) => r.policy === "Long tail first")!;
+    const F = b.online.finals, fixed = F["ItemKNN top pick (no learning)"], greedy = F["Greedy (learns, never explores)"];
+    const ucb = F[b.online.order.find((x) => x.startsWith("LinUCB"))!];
+    const greedyLevel = greedy.last_fifth >= ucb.last_fifth - ucb.last_fifth_sd;
+    items.push(
+      ["ope", <>From a popularity-leaning system’s logs, a “long tail first” policy keeps an effective sample of {int(t.ess)} in
+        {" "}{int(10_000)} rounds; {(t.DR.q05 <= k.truth && k.truth <= t.DR.q95)
+          ? "even doubly robust estimation cannot tell it from the base ranker."
+          : "doubly robust estimation still tells it from the base ranker."}</>],
+      ["online", <>A LinUCB bandit gets {pct(ucb.last_fifth / fixed.last_fifth - 1, 0)} more hits than the fixed base ranker;
+        {greedyLevel ? " a learner that never explores does as well." : " a learner that never explores falls short of it."}</>],
+    );
+  }
+  return (
+    <section className="findings" aria-labelledby="findings-h">
+      <h2 id="findings-h" className="label">What it found</h2>
+      <ol>
+        {items.map(([id, say], i) => (
+          <li key={id}>
+            <span className="fn mono" aria-hidden="true">{i + 1}</span>
+            <div>
+              <a href={`#/lab/${id}`}>{TITLE[id]}</a>
+              <p>{say}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
+      <p className="findings-end">
+        Each links to its chapter, with the figure and the full table. Then <a href="#/lab/limits">what this does not show</a>.
+      </p>
+    </section>
   );
 }
 
@@ -77,7 +141,7 @@ function Models({ lab }: { lab: Lab }) {
   const place: Record<string, Pt["show"]> = { ItemKNN: "t", ALS: "r", EASE: "t", BPR: "r", Popularity: "r" };
   const pts: Pt[] = m.map((x) => ({ id: x.name, label: x.name, x: x.recall, y: x.tail, on: x.name === "ItemKNN", show: place[x.name] ?? "r", tip: tip(x) }));
   return (
-    <Chapter id="models" n="1 · Recommenders" title="Similar recall, very different reach" prose={<>
+    <Chapter id="models" n="1 · Recommenders" title={TITLE.models} prose={<>
       <p>
         Recall@20 asks how many of a listener’s next discoveries appear in their top 20. On that, <b>ItemKNN</b> and ALS
         {spansZero(alsP.recall)
@@ -118,7 +182,7 @@ function Rerank({ lab }: { lab: Lab }) {
     tip: [`recall@20 ${ci(x.recall)}`, `long-tail recall@20 ${ci(x.tail)}`, `artist diversity ${pct(x.artistDiv[0], 0)}`],
   }));
   return (
-    <Chapter id="rerank" n="2 · Re-ranking" title="Buying reach with recall" prose={<>
+    <Chapter id="rerank" n="2 · Re-ranking" title={TITLE.rerank} prose={<>
       <p>
         Three re-rankers reorder ItemKNN’s top 200. <b>PopPenalty</b> divides each score by popularity<sup>β</sup>: at β = 0.25
         recall falls {pp(p25.recall[0], base.recall[0])} and long-tail recall rises {pp(p25.tail[0], base.tail[0])},
@@ -153,7 +217,7 @@ function Cold({ lab }: { lab: Lab }) {
   const audioOnly = new Set(["Audio profile", "Audio → factors"]);
   const order = [...c.models].sort((a, b) => b.recall[0] - a.recall[0]);
   return (
-    <Chapter id="cold" n="3 · Cold start" title="Sound alone barely finds anything" prose={<>
+    <Chapter id="cold" n="3 · Cold start" title={TITLE.cold} prose={<>
       <p>
         Most obscure music has too few listeners for collaborative filtering to see it. The cold catalog here is
         {" "}{int(c.set.n_cold_items)} recordings outside the model’s vocabulary, each with AcousticBrainz audio analysis.
@@ -187,7 +251,7 @@ function Next({ lab }: { lab: Lab }) {
   const tr = lab.next.find((x) => x.name.startsWith("Transition"))!;
   const t = lab.transitions;
   return (
-    <Chapter id="next" n="4 · Next song" title="What people play next is its own signal" prose={<>
+    <Chapter id="next" n="4 · Next song" title={TITLE.next} prose={<>
       <p>
         Two listens by the same person less than {t.gap_minutes} minutes apart make a transition: {int(t.train_transitions)} of
         them in training. Counting transitions finds the true next song in the top 20 {pct(tr.hit[0], 1)} of the time
@@ -236,7 +300,7 @@ function Routes({ lab }: { lab: Lab }) {
   }));
   const smoothPath = ["Route: smooth audio (λ=1)", "Route: personal + smooth", "Route: personal γ=3 + smooth", "Route: personal γ=10 + smooth"];
   return (
-    <Chapter id="routes" n="5 · Routes" title="As deep as a popularity penalty, on steps people take" prose={<>
+    <Chapter id="routes" n="5 · Routes" title={TITLE.routes} prose={<>
       <p>
         A route spends the same budget as a top-20 list ({spell(lab.routeSeeds)} seeds, {spell(lab.routeSteps)} steps each) under beam search on the next-song graph.
         <b> Realism</b> is the share of steps some listener made again in the held-out window.
@@ -326,7 +390,7 @@ function Ope({ b }: { b: Bandit }) {
   const cost = b.explore.baseLoggingValue - b.explore.loggingValue;
   const dmMiss = rows.filter((r) => !within(r.truth, r.DM));
   return (
-    <Chapter id="ope" n="6 · Off-policy evaluation" title="The policies worth trying are the hardest to judge from logs" prose={<>
+    <Chapter id="ope" n="6 · Off-policy evaluation" title={TITLE.ope} prose={<>
       <p>
         A team that wants to try a new recommender usually has only the logs of the old one. Off-policy estimators reweight
         those logs to guess how the new one would do. ListenBrainz has no such logs, so here a logging policy is simulated on
@@ -381,7 +445,7 @@ function Online({ b }: { b: Bandit }) {
   const keep = ["Random", "ItemKNN top pick (no learning)", "Greedy (learns, never explores)", ucbName];
   const label: Record<string, string> = { Random: "random", "ItemKNN top pick (no learning)": "ItemKNN, fixed", "Greedy (learns, never explores)": "greedy learner", [ucbName]: "LinUCB" };
   return (
-    <Chapter id="online" n="7 · Bandits" title="Learning from each hit beats the base ranker; exploring adds nothing here" prose={<>
+    <Chapter id="online" n="7 · Bandits" title={TITLE.online} prose={<>
       <p>
         A contextual bandit recommends one song, sees whether it was a hit, and updates. On the same candidates, a linear
         learner that sees only those single rewards climbs from ItemKNN’s fixed {pct(fixed.last_fifth)} to {pct(ucb.last_fifth)} by

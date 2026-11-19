@@ -218,9 +218,15 @@ button, input { font: inherit; color: inherit; }
 .lab-head { padding: var(--s-8) 0 var(--s-6); max-width: 760px; }
 .lab-head h1 { font-size: clamp(32px, 5vw, 52px); line-height: 1.04; letter-spacing: -0.025em; font-weight: 600; margin: 0 0 var(--s-4); text-wrap: balance; }
 .lab-head p { color: var(--ink-2); font-size: 18px; margin: 0; max-width: 60ch; }
-.toc { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-5); margin: var(--s-5) 0 0; padding: 0; list-style: none; }
-.toc a { font-family: var(--mono); font-size: 12.5px; color: var(--ink-2); text-decoration: none; }
-.toc a:hover { color: var(--ink); }
+.findings { max-width: 760px; padding: 0 0 var(--s-8); }
+.findings ol { list-style: none; margin: var(--s-3) 0 0; padding: 0; border-top: 1px solid var(--rule); }
+.findings li { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: var(--s-3); padding: var(--s-4) 0; border-bottom: 1px solid var(--rule); }
+.findings .fn { font-size: 13px; color: var(--ink-3); padding-top: 3px; }
+.findings a { color: var(--ink); font-weight: 500; font-size: 17px; text-decoration: underline; text-decoration-color: var(--rule-2); text-underline-offset: 4px; }
+.findings a:hover { text-decoration-color: var(--ink-2); }
+.findings li p { margin: 6px 0 0; color: var(--ink-2); max-width: 62ch; }
+.findings-end { margin: var(--s-4) 0 0; color: var(--ink-3); font-size: 14px; }
+.findings-end a { font-size: inherit; font-weight: 400; color: var(--ink-2); }
 .facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-4) var(--s-5); margin: var(--s-6) 0 0; padding: var(--s-5) 0 0; border-top: 1px solid var(--rule); }
 @media (min-width: 768px) { .facts { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 .facts div { min-width: 0; }
